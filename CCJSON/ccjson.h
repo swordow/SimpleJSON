@@ -8,7 +8,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#define MAX_ARRAY_SIZE	256
+#define MAX_ARRAY_SIZE  10240	
 #define MAX_STR_SIZE	256
 
 class JSONValue{
@@ -49,7 +49,7 @@ class JSONNull : public JSONValue{};
 class JSONArray : public JSONValue{
 public:
 	void addJSONValue(JSONValue* jv);
-	JSONArray();
+	JSONArray(int size=MAX_ARRAY_SIZE);
 	int len;
 	JSONValue** jvs;
 };
@@ -72,13 +72,13 @@ public:
 	void decode(const char* json_str);
 
 	//
-	void dumpNumber(JSONNumber* jn, char* buff);
-	void dumpString(JSONString* js, char* buff);
-	void dumpBool(JSONBool* jb, char* buff);
-	void dumpNull(JSONNull* jn, char* buff);
-	void dumpArray(JSONArray* ja, char*buff);
-	void dumpObject(JSONObject* jo, char*buff);
-	void dumpValue(JSONValue* jv, char* buff);
+	void dumpNumber(JSONNumber* jn, char* buff, int* index);
+	void dumpString(JSONString* js, char* buff, int* index);
+	void dumpBool(JSONBool* jb, char* buff, int* index);
+	void dumpNull(JSONNull* jn, char* buff, int* index);
+	void dumpArray(JSONArray* ja, char*buff, int* index);
+	void dumpObject(JSONObject* jo, char*buff, int* index);
+	void dumpValue(JSONValue* jv, char* buff, int* index);
 	const char* dump(char* json_str);
 	
 	//

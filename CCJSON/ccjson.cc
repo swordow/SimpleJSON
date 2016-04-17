@@ -4,6 +4,7 @@
 
 #include "ccjson.h"
 #include <typeinfo>
+#include <math.h>
 //
 JSONString::JSONString(const char* istr) {
 	memcpy(val, istr, (strlen(istr) + 1)*sizeof(char));
@@ -27,7 +28,7 @@ JSONNumber::JSONNumber(double a) :val(a) {}
 JSONBool::JSONBool(bool a) :val(a){}
 
 //
-JSONArray::JSONArray():len(0){ jvs = new JSONValue*[MAX_ARRAY_SIZE]; }
+JSONArray::JSONArray(int size):len(0){ jvs = new JSONValue*[size]; }
 void JSONArray::addJSONValue(JSONValue* jv) { jvs[len++] = jv; }
 
 //
@@ -44,7 +45,7 @@ public:
 
 //
 JSON::JSON(const char* str){
-	json = nullptr;
+	json = 0;
 	decode(str);
 }
 
@@ -79,31 +80,31 @@ JSONObject* JSON::decodeObject()
 			index++;
 			return jo;
 		} else if (fin) {
-			return nullptr;
+			return 0;
 		}
 			
 		//
 		if (str[index] == '\'' || str[index] == '\"')
 			key = decodeString();
 		else {
-			return nullptr;
+			return 0;
 		}
 		
-		if (key == nullptr) {
-			return nullptr;
+		if (key == 0) {
+			return 0;
 		}
 		//
 		index = passWhiteSpace();
 		if (str[index] == ':') index++;
 		else {
-			return nullptr;
+			return 0;
 		}
 
 		//
 		index = passWhiteSpace();
 		val = decodeValue();
-		if (val == nullptr) {
-			return nullptr;
+		if (val == 0) {
+			return 0;
 		}
 
 		jo->addKeyValue(key, val);
@@ -125,11 +126,11 @@ JSONArray* JSON::decodeArray()
 			index++;
 			return ja;
 		} else if (fin) {
-			return nullptr;
+			return 0;
 		}
 		JSONValue* res = decodeValue();
-		if (res == nullptr) {
-			return nullptr;
+		if (res == 0) {
+			return 0;
 		}
 		ja->addJSONValue(res);
 		if (str[index] == ',') index++;
@@ -156,7 +157,7 @@ JSONBool* JSON::decodeBool()
 		return new JSONBool(true);
 	}
 
-	return nullptr;
+	return 0;
 }
 
 JSONNumber* JSON::decodeNumber()
@@ -170,7 +171,7 @@ JSONNumber* JSON::decodeNumber()
 			while (isDigital(str[index])) index++;
 		}
 		else {
-			return nullptr;
+			return 0;
 		}
 	}else while (isDigital(str[index])) index++;
 
@@ -184,7 +185,7 @@ JSONNumber* JSON::decodeNumber()
 		if (str[index] == '+' || str[index] == '-') index++;
 		if (isDigital(str[index])) while (isDigital(str[index])) index++;
 		else{
-			return nullptr;
+			return 0;
 		}
 	}
 	char v[MAX_STR_SIZE] = { 0 };
@@ -201,7 +202,7 @@ JSONNull* JSON::decodeNull()
 		index += 4;
 		return new JSONNull();
 	}
-	return nullptr;
+	return 0;
 }
 
 JSONValue* JSON::decodeValue()
@@ -225,7 +226,7 @@ JSONValue* JSON::decodeValue()
 		return decodeNull();
 
 	JSONError je(str,index);
-	return nullptr;
+	return 0;
 }
 
 inline bool JSON::isWhiteSpace(char c) {
@@ -255,89 +256,112 @@ void JSON::decode(const char* json_str){
 	else if (str[index] == '[')
 		json = decodeArray();
 	
-	if (json == nullptr) {
+	if (json == 0) {
 		JSONError je(str, index);
 	}
 }
 
-void JSON::dumpNumber(JSONNumber* jn, char* buff)
+void JSON::dumpNumber(JSONNumber* jn, char* buff, int* index)
 {
-	sprintf(&buff[strlen(buff)], "%f", jn->val);
+    //strcat(buff, "1");
+    //break the heap mem in some case
+    //sprintf(&buff[strlen(buff)], "%.4f", jn->val);
+    int a = static_cast<int>(jn->val);
+    int b = static_cast<int>(fabs((jn->val - a)*10000.0));
+    char numa[256] = { 0 };
+    char numb[256] = { 0 };
+    itoa(a, numa, 10);
+    itoa(b, numb, 10);
+    strcat(&buff[*index], numa);
+    strcat(&buff[*index], ".");
+    strcat(&buff[*index], numb);
+    (*index) += (strlen(&buff[*index]));
 }
 
-void JSON::dumpString(JSONString* js, char* buff)
+void JSON::dumpString(JSONString* js, char* buff, int* index)
 {
-	strcat(buff, "\'");
-	strcat(buff, js->val);
-	strcat(buff, "\'");
+	strcat(&buff[*index], "\'");
+	strcat(&buff[*index], js->val);
+	strcat(&buff[*index], "\'");
+    (*index) += (strlen(&buff[*index]));
 }
 
-void JSON::dumpBool(JSONBool* jb, char* buff) {
+void JSON::dumpBool(JSONBool* jb, char* buff, int* index) {
 	if (jb->val) {
-		strcat(buff, "true");
+		strcat(&buff[*index], "true");
 	}else{
-		strcat(buff, "false");
+		strcat(&buff[*index], "false");
 	}
+    (*index) += (strlen(&buff[*index]));
 }
 
-void JSON::dumpNull(JSONNull* jn, char* buff) {
-	strcat(buff, "null");
+void JSON::dumpNull(JSONNull* jn, char* buff, int* index) {
+	strcat(&buff[*index], "null");
+    (*index) += (strlen(&buff[*index]));
 }
 
-void JSON::dumpArray(JSONArray* ja, char*buff){
-	strcat(buff, "[");
+void JSON::dumpArray(JSONArray* ja, char* buff, int* index) {
+	strcat(&buff[*index], "[");
+    (*index) += 1;
 	for (int i = 0; i < ja->len; i++) {
-		dumpValue(ja->jvs[i], buff);
-		strcat(buff, ",");
+		dumpValue(ja->jvs[i], buff, index);
+        strcat(&buff[*index], ",");
+        (*index) += 1;
 	}
-	strcat(buff, "]");
+	strcat(&buff[*index], "]");
+    (*index) += 1;
 }
 
-void JSON::dumpObject(JSONObject* jo, char*buff) {
-	strcat(buff, "{");
+void JSON::dumpObject(JSONObject* jo, char*buff, int* index){
+    strcat(&buff[*index], "{");
+    (*index) += 1;
 	for (int i = 0; i < jo->len; i++) {
-		dumpString(jo->keys[i], buff);
-		strcat(buff, ":");
-		dumpValue(jo->vals[i], buff);
-		strcat(buff, ",");
+		dumpString(jo->keys[i], buff, index);
+        strcat(&buff[*index], ":");
+        (*index) += 1;
+		dumpValue(jo->vals[i], buff, index);
+        strcat(&buff[*index], ",");
+        (*index) += 1;
 	}
-	strcat(buff, "}");
+    strcat(&buff[*index], "}");
+    (*index) += 1;
 }
 
-void JSON::dumpValue(JSONValue* jv, char* buff){
-	if (dynamic_cast<JSONBool*>(jv) != nullptr) {
-		dumpBool(static_cast<JSONBool*>(jv), buff);
+void JSON::dumpValue(JSONValue* jv, char* buff,  int* index){
+	if (dynamic_cast<JSONBool*>(jv) != 0) {
+		dumpBool(static_cast<JSONBool*>(jv), buff, index);
 		return;
 	}
-	if (dynamic_cast<JSONArray*>(jv) != nullptr) {
-		dumpArray(static_cast<JSONArray*>(jv), buff);
+	if (dynamic_cast<JSONArray*>(jv) != 0) {
+		dumpArray(static_cast<JSONArray*>(jv), buff, index);
 		return;
 	}
-	if (dynamic_cast<JSONString*>(jv) != nullptr) {
-		dumpString(static_cast<JSONString*>(jv), buff);
+	if (dynamic_cast<JSONString*>(jv) != 0) {
+		dumpString(static_cast<JSONString*>(jv), buff, index);
 		return;
 	}
-	if (dynamic_cast<JSONNumber*>(jv) != nullptr) {
-		dumpNumber(static_cast<JSONNumber*>(jv), buff);
+	if (dynamic_cast<JSONNumber*>(jv) != 0) {
+		dumpNumber(static_cast<JSONNumber*>(jv), buff, index);
 		return;
 	}
-	if (dynamic_cast<JSONNull*>(jv) != nullptr) {
-		dumpNull(static_cast<JSONNull*>(jv), buff);
+	if (dynamic_cast<JSONNull*>(jv) != 0) {
+		dumpNull(static_cast<JSONNull*>(jv), buff, index);
 		return;
 	}
-	if (dynamic_cast<JSONObject*>(jv) != nullptr) {
-		dumpObject(static_cast<JSONObject*>(jv), buff);
+	if (dynamic_cast<JSONObject*>(jv) != 0) {
+		dumpObject(static_cast<JSONObject*>(jv), buff, index);
 		return;
 	}
 }
 
 const char* JSON::dump(char*json_str){
-	dumpValue(json, json_str);
+    int i = 0;
+	dumpValue(json, json_str, &i);
 	return json_str;
 }
 
 bool JSON::getString(const char* key, char*buffer, int *len) {
-	if (dynamic_cast<JSONObject*>(json) == nullptr) return false;
+	if (dynamic_cast<JSONObject*>(json) == 0) return false;
 	JSONObject* jo = dynamic_cast<JSONObject*>(json);
 	for (int i = 0; i < jo->len; i++) {
 		if (strcmp(key, jo->keys[i]->val) == 0){
@@ -350,7 +374,7 @@ bool JSON::getString(const char* key, char*buffer, int *len) {
 }
 
 bool JSON::getNumber(const char* key, double* val) {
-	if (dynamic_cast<JSONObject*>(json) == nullptr) return false;
+	if (dynamic_cast<JSONObject*>(json) == 0) return false;
 	JSONObject* jo = dynamic_cast<JSONObject*>(json);
 	for (int i = 0; i < jo->len; i++) {
 		if (strcmp(key, jo->keys[i]->val) == 0){
@@ -362,7 +386,7 @@ bool JSON::getNumber(const char* key, double* val) {
 }
 
 bool JSON::getBool(const char* key, bool* val) {
-	if (dynamic_cast<JSONObject*>(json) == nullptr) return false;
+	if (dynamic_cast<JSONObject*>(json) == 0) return false;
 	JSONObject* jo = dynamic_cast<JSONObject*>(json);
 	for (int i = 0; i < jo->len; i++) {
 		if (strcmp(key, jo->keys[i]->val) == 0){
