@@ -8,69 +8,57 @@
 
 //
 JSONString::JSONString(const char* istr) {
-	memcpy(val, istr, (strlen(istr) + 1)*sizeof(char));
+    val = std::string(istr);
 }
 
 //
 JSONObject::JSONObject() :len(0) {
-	keys = new JSONString*[MAX_ARRAY_SIZE];
-	vals = new JSONValue*[MAX_ARRAY_SIZE];
 }
 void JSONObject::addKeyValue(JSONString* key, JSONValue* val) {
-	keys[len] = key;
-	vals[len] = val;
+    key_val.insert(std::make_pair(key->val, val));
 	len++;
 }
 
 bool JSONObject::getString(const char* key, char*buffer, int *len) {
-    for (int i = 0; i < this->len; i++) {
-        if (strcmp(key, keys[i]->val) == 0) {
-            const char* val = dynamic_cast<JSONString*>(vals[i])->val;
-            strncpy(buffer, val, (strlen(val) + 1)*sizeof(char));
-            return true;
-        }
+    std::map<std::string, JSONValue*>::iterator it = key_val.find(std::string(key));
+    if (it == key_val.end()) return false;
+    const char* val = dynamic_cast<JSONString*>(it->second)->val.c_str();
+    int need_len = strlen(val);
+    if (need_len >= *len) {
+        *len = need_len+1;
+        return false;
     }
-    return false;
+    strncpy(buffer, val, (need_len + 1)*sizeof(char));
+    *len = need_len + 1;
+    return true;
 }
 
 bool JSONObject::getNumber(const char* key, double* val) {
-    for (int i = 0; i < len; i++) {
-        if (strcmp(key, keys[i]->val) == 0) {
-            *val = dynamic_cast<JSONNumber*>(vals[i])->val;
-            return true;
-        }
-    }
-    return false;
+    std::map<std::string, JSONValue*>::iterator it = key_val.find(std::string(key));
+    if (it == key_val.end()) return false;
+    *val = dynamic_cast<JSONNumber*>(it->second)->val;
+    return true;
 }
 
 bool JSONObject::getBool(const char* key, bool* val) {
-    for (int i = 0; i < len; i++) {
-        if (strcmp(key, keys[i]->val) == 0) {
-            *val = dynamic_cast<JSONBool*>(vals[i])->val;
-            return true;
-        }
-    }
-    return false;
+    std::map<std::string, JSONValue*>::iterator it = key_val.find(std::string(key));
+    if (it == key_val.end()) return false;
+    *val = dynamic_cast<JSONBool*>(it->second)->val;
+    return true;
 }
 
 bool JSONObject::getArray(const char* key, JSONArray** ja) {
-    for (int i = 0; i < len; i++) {
-        if (strcmp(key, keys[i]->val) == 0) {
-            (*ja) = dynamic_cast<JSONArray*>(vals[i]);
-            return true;
-        }
-    }
+    std::map<std::string, JSONValue*>::iterator it = key_val.find(std::string(key));
+    if (it == key_val.end()) return false;
+    *ja = dynamic_cast<JSONArray*>(it->second);
     return true;
 }
 
 bool JSONObject::getObject(const char* key, JSONObject** joo) {
-    for (int i = 0; i < len; i++) {
-        if (strcmp(key, keys[i]->val) == 0) {
-            (*joo) = dynamic_cast<JSONObject*>(vals[i]);
-            return true;
-        }
-    }
-    return false;
+    std::map<std::string, JSONValue*>::iterator it = key_val.find(std::string(key));
+    if (it == key_val.end()) return false;
+    *joo = dynamic_cast<JSONObject*>(it->second);
+    return true;
 }
 
 //
@@ -80,10 +68,20 @@ JSONNumber::JSONNumber(double a) :val(a) {}
 JSONBool::JSONBool(bool a) :val(a){}
 
 //
-JSONArray::JSONArray(int size):len(0){ jvs = new JSONValue*[size]; }
-void JSONArray::addJSONValue(JSONValue* jv) { jvs[len++] = jv; }
+JSONArray::JSONArray(int size){
+    jvs.clear();
+    jvs.resize(size);
+    len = 0;
+}
+
+void JSONArray::addJSONValue(JSONValue* jv) {
+    if (len >= jvs.size()) {
+        jvs.resize(len * 2);
+    }
+    jvs[len++] = jv; 
+}
 const JSONValue** JSONArray::getJSONValues() {
-    return (const JSONValue**)jvs;
+    return (const JSONValue**)(&jvs[0]);
 }
 
 const JSONValue* JSONArray::getJSONValueByIndex(int index)
@@ -99,7 +97,7 @@ public:
 		char e[MAX_STR_SIZE] = {0};
 		memcpy(e, str, error_index*sizeof(char));
 		e[error_index] = '^';
-		printf("Error Syntax: %s\n", e);
+		printf("Error Syntax (%d): %s\n", error_index, e);
 	}
 };
 
@@ -341,7 +339,7 @@ void JSON::dumpNumber(JSONNumber* jn, char* buff, int* index)
 void JSON::dumpString(JSONString* js, char* buff, int* index)
 {
 	strcat(&buff[*index], "\'");
-	strcat(&buff[*index], js->val);
+	strcat(&buff[*index], js->val.c_str());
 	strcat(&buff[*index], "\'");
     (*index) += (strlen(&buff[*index]));
 }
@@ -375,11 +373,15 @@ void JSON::dumpArray(JSONArray* ja, char* buff, int* index) {
 void JSON::dumpObject(JSONObject* jo, char*buff, int* index){
     strcat(&buff[*index], "{");
     (*index) += 1;
-	for (int i = 0; i < jo->len; i++) {
-		dumpString(jo->keys[i], buff, index);
-        strcat(&buff[*index], ":");
+    std::map<std::string, JSONValue*>::iterator it = jo->key_val.begin();
+    for (; it != jo->key_val.end(); it++) {
+        strcat(&buff[*index], "'");
         (*index) += 1;
-		dumpValue(jo->vals[i], buff, index);
+        strcat(&buff[*index], it->first.c_str());
+        (*index) += it->first.length();
+        strcat(&buff[*index], "':");
+        (*index) += 2;
+		dumpValue(it->second, buff, index);
         strcat(&buff[*index], ",");
         (*index) += 1;
 	}

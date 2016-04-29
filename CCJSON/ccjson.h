@@ -8,6 +8,9 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string>
+#include <map>
+#include <vector>
 #define MAX_ARRAY_SIZE  10240	
 #define MAX_STR_SIZE	256
 
@@ -21,15 +24,14 @@ public:
 class JSONString : public JSONValue{
 public:
 	JSONString(const char* istr);
-	char val[MAX_STR_SIZE];
+	std::string val;
 };
 
 class JSONObject : public JSONValue{
 public:
 	JSONObject();
 	void addKeyValue(JSONString* key, JSONValue* val);
-	JSONString** keys;
-	JSONValue** vals;
+    std::map<std::string, JSONValue*> key_val;
 	int len;
     bool getString(const char*key, char*buff, int* len);
     bool getNumber(const char* key, double* val);
@@ -56,9 +58,9 @@ class JSONNull : public JSONValue{};
 class JSONArray : public JSONValue{
 public:
 	void addJSONValue(JSONValue* jv);
-	JSONArray(int size=MAX_ARRAY_SIZE);
-	int len;
-	JSONValue** jvs;
+	JSONArray(int size=1024);
+	std::vector<JSONValue*> jvs;
+    int len;
     const JSONValue* getJSONValueByIndex(int index);
     const JSONValue** getJSONValues();
 };
