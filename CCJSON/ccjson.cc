@@ -5,6 +5,7 @@
 #include "ccjson.h"
 #include <typeinfo>
 #include <math.h>
+
 //
 JSONString::JSONString(const char* istr) {
 	memcpy(val, istr, (strlen(istr) + 1)*sizeof(char));
@@ -21,6 +22,57 @@ void JSONObject::addKeyValue(JSONString* key, JSONValue* val) {
 	len++;
 }
 
+bool JSONObject::getString(const char* key, char*buffer, int *len) {
+    for (int i = 0; i < this->len; i++) {
+        if (strcmp(key, keys[i]->val) == 0) {
+            const char* val = dynamic_cast<JSONString*>(vals[i])->val;
+            strncpy(buffer, val, (strlen(val) + 1)*sizeof(char));
+            return true;
+        }
+    }
+    return false;
+}
+
+bool JSONObject::getNumber(const char* key, double* val) {
+    for (int i = 0; i < len; i++) {
+        if (strcmp(key, keys[i]->val) == 0) {
+            *val = dynamic_cast<JSONNumber*>(vals[i])->val;
+            return true;
+        }
+    }
+    return false;
+}
+
+bool JSONObject::getBool(const char* key, bool* val) {
+    for (int i = 0; i < len; i++) {
+        if (strcmp(key, keys[i]->val) == 0) {
+            *val = dynamic_cast<JSONBool*>(vals[i])->val;
+            return true;
+        }
+    }
+    return false;
+}
+
+bool JSONObject::getArray(const char* key, JSONArray** ja) {
+    for (int i = 0; i < len; i++) {
+        if (strcmp(key, keys[i]->val) == 0) {
+            (*ja) = dynamic_cast<JSONArray*>(vals[i]);
+            return true;
+        }
+    }
+    return true;
+}
+
+bool JSONObject::getObject(const char* key, JSONObject** joo) {
+    for (int i = 0; i < len; i++) {
+        if (strcmp(key, keys[i]->val) == 0) {
+            (*joo) = dynamic_cast<JSONObject*>(vals[i]);
+            return true;
+        }
+    }
+    return false;
+}
+
 //
 JSONNumber::JSONNumber(double a) :val(a) {} 
 
@@ -30,6 +82,14 @@ JSONBool::JSONBool(bool a) :val(a){}
 //
 JSONArray::JSONArray(int size):len(0){ jvs = new JSONValue*[size]; }
 void JSONArray::addJSONValue(JSONValue* jv) { jvs[len++] = jv; }
+const JSONValue** JSONArray::getJSONValues() {
+    return (const JSONValue**)jvs;
+}
+
+const JSONValue* JSONArray::getJSONValueByIndex(int index)
+{
+    return jvs[index];
+}
 
 //
 class JSONError
@@ -363,36 +423,33 @@ const char* JSON::dump(char*json_str){
 bool JSON::getString(const char* key, char*buffer, int *len) {
 	if (dynamic_cast<JSONObject*>(json) == 0) return false;
 	JSONObject* jo = dynamic_cast<JSONObject*>(json);
-	for (int i = 0; i < jo->len; i++) {
-		if (strcmp(key, jo->keys[i]->val) == 0){
-			const char* val = dynamic_cast<JSONString*>(jo->vals[i])->val;
-			strncpy(buffer, val, (strlen(val) + 1)*sizeof(char));
-			return true;
-		}
-	}
-	return false;
+    return jo->getString(key, buffer, len);
 }
 
 bool JSON::getNumber(const char* key, double* val) {
 	if (dynamic_cast<JSONObject*>(json) == 0) return false;
 	JSONObject* jo = dynamic_cast<JSONObject*>(json);
-	for (int i = 0; i < jo->len; i++) {
-		if (strcmp(key, jo->keys[i]->val) == 0){
-			*val = dynamic_cast<JSONNumber*>(jo->vals[i])->val;
-			return true;
-		}
-	}
-	return false;
+    return jo->getNumber(key, val);
 }
 
 bool JSON::getBool(const char* key, bool* val) {
 	if (dynamic_cast<JSONObject*>(json) == 0) return false;
 	JSONObject* jo = dynamic_cast<JSONObject*>(json);
-	for (int i = 0; i < jo->len; i++) {
-		if (strcmp(key, jo->keys[i]->val) == 0){
-			*val = dynamic_cast<JSONBool*>(jo->vals[i])->val;
-			return true;
-		}
-	}
-	return false;
+    return jo->getBool(key, val);
+}
+
+bool JSON::getArray(const char* key, JSONArray** ja) {
+    if (dynamic_cast<JSONObject*>(json) == 0) return false;
+    JSONObject* jo = dynamic_cast<JSONObject*>(json);
+    return jo->getArray(key, ja);
+}
+
+bool JSON::getObject(const char* key, JSONObject** joo) {
+    if (dynamic_cast<JSONObject*>(json) == 0) return false;
+    JSONObject* jo = dynamic_cast<JSONObject*>(json);
+    return jo->getObject(key, joo);
+}
+
+const JSONValue* JSON::getRootJSONValue() {
+    return json;
 }

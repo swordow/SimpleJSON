@@ -11,6 +11,7 @@
 #define MAX_ARRAY_SIZE  10240	
 #define MAX_STR_SIZE	256
 
+class JSONArray;
 class JSONValue{
 public:
 	JSONValue(){}
@@ -30,6 +31,12 @@ public:
 	JSONString** keys;
 	JSONValue** vals;
 	int len;
+    bool getString(const char*key, char*buff, int* len);
+    bool getNumber(const char* key, double* val);
+    bool getBool(const char* key, bool* val);
+    bool getArray(const char*key, JSONArray** ja);
+    bool getObject(const char*key, JSONObject** jo);
+
 };
 
 class JSONNumber : public JSONValue{
@@ -52,6 +59,8 @@ public:
 	JSONArray(int size=MAX_ARRAY_SIZE);
 	int len;
 	JSONValue** jvs;
+    const JSONValue* getJSONValueByIndex(int index);
+    const JSONValue** getJSONValues();
 };
 
 class JSON {
@@ -85,7 +94,10 @@ public:
 	bool getString(const char*key, char*buff, int* len);
 	bool getNumber(const char* key, double* val);
 	bool getBool(const char* key, bool* val);
+    bool getArray(const char*key, JSONArray** ja);
+    bool getObject(const char*key, JSONObject** jo);
 	
+    const JSONValue* getRootJSONValue();
 	JSONValue* json;
 	const char* str;
 	int index;
