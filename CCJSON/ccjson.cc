@@ -33,10 +33,38 @@ bool JSONObject::getString(const char* key, char*buffer, int *len) {
     return true;
 }
 
+bool JSONObject::getString(const char* key, std::string& val)
+{
+	std::map<std::string, JSONValue*>::iterator it = key_val.find(std::string(key));
+    if (it == key_val.end()) return false;
+    val = dynamic_cast<JSONString*>(it->second)->val;
+    return true;
+}
+
 bool JSONObject::getNumber(const char* key, double* val) {
     std::map<std::string, JSONValue*>::iterator it = key_val.find(std::string(key));
     if (it == key_val.end()) return false;
     *val = dynamic_cast<JSONNumber*>(it->second)->val;
+    return true;
+}
+
+bool JSONObject::getNumber(const char* key, float* val) {
+	double x;
+	if (!getNumber(key, &x))
+	{
+		return false;
+	}
+	
+	*val = static_cast<float>(x);
+    return true;
+}
+bool JSONObject::getNumber(const char* key, int* val) {
+    double x;
+	if (!getNumber(key, &x))
+	{
+		return false;
+	}
+	*val = static_cast<int>(x);
     return true;
 }
 
@@ -328,8 +356,13 @@ void JSON::dumpNumber(JSONNumber* jn, char* buff, int* index)
     int b = static_cast<int>(fabs((jn->val - a)*10000.0));
     char numa[256] = { 0 };
     char numb[256] = { 0 };
+#if defined(_WIN32) || defined(_WIN64)
     itoa(a, numa, 10);
     itoa(b, numb, 10);
+#else
+    sprintf(numa, "%d", a);
+    sprintf(numb, "%d", b);
+#endif
     strcat(&buff[*index], numa);
     strcat(&buff[*index], ".");
     strcat(&buff[*index], numb);
@@ -428,7 +461,25 @@ bool JSON::getString(const char* key, char*buffer, int *len) {
     return jo->getString(key, buffer, len);
 }
 
+bool JSON::getString(const char* key, std::string& val) {
+	if (dynamic_cast<JSONObject*>(json) == 0) return false;
+	JSONObject* jo = dynamic_cast<JSONObject*>(json);
+    return jo->getString(key, val);
+}
+
 bool JSON::getNumber(const char* key, double* val) {
+	if (dynamic_cast<JSONObject*>(json) == 0) return false;
+	JSONObject* jo = dynamic_cast<JSONObject*>(json);
+    return jo->getNumber(key, val);
+}
+
+bool JSON::getNumber(const char* key, float* val) {
+	if (dynamic_cast<JSONObject*>(json) == 0) return false;
+	JSONObject* jo = dynamic_cast<JSONObject*>(json);
+    return jo->getNumber(key, val);
+}
+
+bool JSON::getNumber(const char* key, int* val) {
 	if (dynamic_cast<JSONObject*>(json) == 0) return false;
 	JSONObject* jo = dynamic_cast<JSONObject*>(json);
     return jo->getNumber(key, val);

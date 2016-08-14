@@ -34,7 +34,11 @@ public:
     std::map<std::string, JSONValue*> key_val;
 	int len;
     bool getString(const char*key, char*buff, int* len);
+    bool getString(const char*key, std::string& val);
     bool getNumber(const char* key, double* val);
+    bool getNumber(const char* key, float* val);
+    bool getNumber(const char* key, int* val);
+
     bool getBool(const char* key, bool* val);
     bool getArray(const char*key, JSONArray** ja);
     bool getObject(const char*key, JSONObject** jo);
@@ -94,7 +98,11 @@ public:
 	
 	//
 	bool getString(const char*key, char*buff, int* len);
+	bool getString(const char*key, std::string& val);
 	bool getNumber(const char* key, double* val);
+	bool getNumber(const char* key, float* val);
+	bool getNumber(const char* key, int* val);
+
 	bool getBool(const char* key, bool* val);
     bool getArray(const char*key, JSONArray** ja);
     bool getObject(const char*key, JSONObject** jo);
