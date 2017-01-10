@@ -349,23 +349,7 @@ void JSON::decode(const char* json_str){
 
 void JSON::dumpNumber(JSONNumber* jn, char* buff, int* index)
 {
-    //strcat(buff, "1");
-    //break the heap mem in some case
-    //sprintf(&buff[strlen(buff)], "%.4f", jn->val);
-    int a = static_cast<int>(jn->val);
-    int b = static_cast<int>(fabs((jn->val - a)*10000.0));
-    char numa[256] = { 0 };
-    char numb[256] = { 0 };
-#if defined(_WIN32) || defined(_WIN64)
-    itoa(a, numa, 10);
-    itoa(b, numb, 10);
-#else
-    sprintf(numa, "%d", a);
-    sprintf(numb, "%d", b);
-#endif
-    strcat(&buff[*index], numa);
-    strcat(&buff[*index], ".");
-    strcat(&buff[*index], numb);
+    sprintf(&buff[*index], "%.4f", jn->val);
     (*index) += (strlen(&buff[*index]));
 }
 
