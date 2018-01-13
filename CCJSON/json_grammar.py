@@ -149,42 +149,79 @@ class SymbolSet(object):
 
 	def append(self, symbol):
 		pass
+# 符号串
+class SymbolSequence(object):
+	def __init__(self, seq):
+		self.seq = seq
+
+	def equal(self, seq):
+		if len(self.seq) != len(seq):
+			return False
+		for i in xrange(len(seq)):
+			if self.seq[i] != seq[i]:
+				return False
+		return True
+
+	def first_symbol(self):
+		return self.seq[0]
+
+	def symbol(self, i):
+		return self.seq[i]
+
+	def get_symbols(self, start, end):
+		return self.seq[start:end]
+
+	def clone(self):
+		clone = []
+		for i in xrange(len(self.seq)):
+			clone.append(self.seq[i])
+		return SymbolSequence(clone)
+
+	def add_symbol(self, sym):
+		self.seq.append(sym)
+
+	def add_symbols(self, syms):
+		for sym in syms:
+			self.add_symbol(sym)
+
+	def __repr__(self):
+		s = ""
+		for i in xrange(len(self.seq)):
+			s += " "+repr(self.seq[i])
+		return s
 
 class Production(object):
 	def __init__(self, sym_left, sym_rights):
 		super(Production, self).__init__()
 		self.sym_left = sym_left
-		self.sym_rights = sym_rights
+		self.sym_seqs = []
+		for ss in sym_rights:
+			self.sym_seqs.append(SymbolSequence(ss))
 
 	def dump(self):
 		out = SYM_DICT[self.sym_left.value] + " -> "
-		for p in self.sym_rights:
-			for s in p:
-				if s.type == ST_VT:
-					out += str(s.value)
-				else:
-					out += SYM_DICT[s.value]
-				out += ' '
-			out += ' | '
+		for ss in self.sym_seqs:
+			out += repr(ss) + ' | '
 		return out[:-2]
 
-	def remove_indirect_left_recursion(self, sym, production):
+	def remove_indirect_left_recursion(self, production):
 		n_rights = []
-		for p in self.sym_rights:
+		# 遍历自己的所有候选符号串
+		for candidate_seq in self.sym_seqs:
 			# A->By
-			if sym.equal(p[0]):
-				for pp in production.sym_rights:
-					nn = []
-					for ss in pp:
-						nn.append(ss)
-					for ss in xrange(1,len(p)):
-						nn.append(p[ss])
-					n_rights.append(nn)
+			# 如果传入的产生式的起始符号和当前候选符号串的首字符相同
+			if production.sym_left.equal(candidate_seq.first_symbol()):
+				# 就遍历传入的产生式的所有候选符号串,重新生成A的产生式符号串
+				# B->a|T|c
+				# A->ay|Ty|cy
+				for in_candidate_seq in production.sym_seqs:
+					new_seq = in_candidate_seq.clone()
+					new_seq.add_symbols(candidate_seq.get_symbols(1, -1))
+					n_rights.append(new_seq)
 
 			else:
-				n_rights.append(p)
-		self.sym_rights = n_rights
-
+				n_rights.append(candidate_seq)
+		self.sym_seqs = n_rights
 
 class Symbol(object):
 	'''
@@ -212,6 +249,12 @@ class Symbol(object):
 
 	def is_vn(self):
 		return self.type == ST_VN
+	
+	def __repr__(self):
+		if self.is_vt() and self.value != SYM_ANY_CHAR:
+			return self.value
+		else:
+			return SYM_DICT[self.value]
 		
 
 class JsonGramma(object):
@@ -444,7 +487,7 @@ class JsonGramma(object):
 				# replace with A->ay|by
 				PA = self.productions[A.value]
 				PB = self.productions[B.value]
-				PA.remove_indirect_left_recursion(B, PB);
+				PA.remove_indirect_left_recursion(PB);
 
 	def get_first_set_of_symbol(self, first_set, sym):
 		if sym.is_vt() and sym.value not in first_set:
@@ -495,10 +538,12 @@ class JsonGramma(object):
 
 		print '------------------------ follow set -----------------------'
 		follow_set = {
-			'SYM_OBJ':['#',],
+			SYM_DICT[SYM_OBJ]:['#',],
 		}
+
+		# 分析每个产生式的每个候选项
 		for s,p in self.productions.iteritems():
-			pass
+				pass
 		print follow_set
 
 
@@ -510,6 +555,8 @@ class JsonGramma(object):
 a = JsonGramma()
 a.dump()
 a.remove_indirect_left_recursion()
+print '----------------------- after remove left recursion --------------------------'
+a.dump()
 print '-------------------------------------------'
 a.dump()
 a.check_LL1()
