@@ -165,6 +165,9 @@ class SymbolSequence(object):
 	def first_symbol(self):
 		return self.seq[0]
 
+	def is_empty_sequence(self):
+		return len(self.seq) == 0
+
 	def symbol(self, i):
 		return self.seq[i]
 
@@ -186,6 +189,8 @@ class SymbolSequence(object):
 
 	def __repr__(self):
 		s = ""
+		if len(self.seq) == 0:
+			return "es"
 		for i in xrange(len(self.seq)):
 			s += " "+repr(self.seq[i])
 		return s
@@ -216,7 +221,7 @@ class Production(object):
 				# A->ay|Ty|cy
 				for in_candidate_seq in production.sym_seqs:
 					new_seq = in_candidate_seq.clone()
-					new_seq.add_symbols(candidate_seq.get_symbols(1, -1))
+					new_seq.add_symbols(candidate_seq.get_symbols(1, None))
 					n_rights.append(new_seq)
 
 			else:
@@ -487,21 +492,64 @@ class JsonGramma(object):
 				# replace with A->ay|by
 				PA = self.productions[A.value]
 				PB = self.productions[B.value]
-				PA.remove_indirect_left_recursion(PB);
+				PA.remove_indirect_left_recursion(PB)
 
 	def get_first_set_of_symbol(self, first_set, sym):
-		if sym.is_vt() and sym.value not in first_set:
-			first_set.append(sym.value)
-			return first_set
+		if (repr(sym)) in first_set:
+			return
 
-		if sym.is_vn():
-			return self.get_first_set_of_production(first_set, self.productions[sym.value])
+		if sym.is_vt():
+			assert(0)
+
+		return self.get_first_set_of_production(first_set, self.productions[sym.value])
+
+	def get_first_set_of_symbol_sequence(self, first_set, seq):
+		if repr(seq) in first_set:
+			return 
+		str_seq = repr(seq)
+		empty_seq = SymbolSequence([])
+		if seq.first_symbol().is_vt():
+			first_set[str_seq] = [repr(seq.first_symbol()),]
+			return
+		
+		first_set[str_seq] = []
+		if repr(seq.first_symbol()) not in first_set:
+			self.get_first_set_of_symbol(first_set, seq.first_symbol())
+		
+		# 如果空串不在FIRST(Y),那么FIRST(alpha) = FIRST(Y)
+		if repr(empty_seq) not in first_set[repr(seq.first_symbol())]:
+			for item in first_set[repr(seq.first_symbol())]:
+				first_set[str_seq].append(item)
+		else:
+			# 如果空串在FIRST(Y),那么FIRST(alpha) = (FIRST(Y) - {空串}) U FIRST(beta)
+			beta = SymbolSequence(seq.get_symbols(1,None)) #构建去掉首非终结符的剩余字符串
+			self.get_first_set_of_symbol_sequence(first_set, beta)
+			for s in first_set[repr(seq.first_symbol())]:
+				if s == repr(empty_seq):
+					continue
+				first_set[str_seq].append(s)
+			for s in first_set[repr(beta)]:
+				first_set[str_seq].append(s)
+
+	def get_first_set(self):
+		first_set = {}
+		for p in self.productions:
+			for seq in p.sym_seqs:
+				self.get_first_set_of_symbol_sequence(first_set, seq)
+
 
 	def get_first_set_of_production(self, first_set, p):
-		for item in p.sym_rights:
-			self.get_first_set_of_symbol(first_set, item[0])
-
-		return first_set
+		vn = repr(p.sym_left)
+		if vn in first_set:
+			return
+		# A -> alpha | beta
+		# FIRST(A) = FIRST(alpha) U FIRST(beta)
+		first_set[vn] = []
+		for seq in p.sym_seqs:
+			self.get_first_set_of_symbol_sequence(first_set, seq)
+			for item in first_set[repr(seq)]:
+				if item not in first_set[vn]:
+					first_set[vn].append(item)
 
 	def get_follow_set_of_symbol(self, follow_set, sym):
 		if sym.is_vt() and sym.value not in follow_set:
@@ -525,12 +573,12 @@ class JsonGramma(object):
 
 		first_set = {}
 		for sym in vts:
-			first_list = []
-			self.get_first_set_of_symbol(first_list, sym)
-			first_set[SYM_DICT[sym.value]] = first_list
+			self.get_first_set_of_symbol(first_set, sym)
+
 		print '------------------------ first set ------------------------'
+		# print first_set
 		for k, v in first_set.iteritems():
-			line = k + '\t\t\t';
+			line = "SEQ<"+k+">" + '\t\t\t';
 			for vv in v:
 				line = line + repr(vv) + ','
 			line = line[:-1]
@@ -538,12 +586,17 @@ class JsonGramma(object):
 
 		print '------------------------ follow set -----------------------'
 		follow_set = {
-			SYM_DICT[SYM_OBJ]:['#',],
+			repr(SYM_DICT[SYM_OBJ]):['#',],
 		}
 
 		# 分析每个产生式的每个候选项
 		for s,p in self.productions.iteritems():
-				pass
+			for seq in p.sym_seqs:
+				syms = seq.get_symbols(0, None)
+				for sym in syms:
+					if sym.is_vn():
+						
+
 		print follow_set
 
 
