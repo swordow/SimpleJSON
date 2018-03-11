@@ -503,6 +503,19 @@ class JsonGramma(object):
 
 		return self.get_first_set_of_production(first_set, self.productions[sym.value])
 
+	def get_first_set_of_production(self, first_set, p):
+		vn = repr(p.sym_left)
+		if vn in first_set:
+			return
+		# A -> alpha | beta
+		# FIRST(A) = FIRST(alpha) U FIRST(beta)
+		first_set[vn] = []
+		for seq in p.sym_seqs:
+			self.get_first_set_of_symbol_sequence(first_set, seq)
+			for item in first_set[repr(seq)]:
+				if item not in first_set[vn]:
+					first_set[vn].append(item)
+
 	def get_first_set_of_symbol_sequence(self, first_set, seq):
 		if repr(seq) in first_set:
 			return 
@@ -520,36 +533,25 @@ class JsonGramma(object):
 		if repr(empty_seq) not in first_set[repr(seq.first_symbol())]:
 			for item in first_set[repr(seq.first_symbol())]:
 				first_set[str_seq].append(item)
-		else:
-			# 如果空串在FIRST(Y),那么FIRST(alpha) = (FIRST(Y) - {空串}) U FIRST(beta)
-			beta = SymbolSequence(seq.get_symbols(1,None)) #构建去掉首非终结符的剩余字符串
-			self.get_first_set_of_symbol_sequence(first_set, beta)
-			for s in first_set[repr(seq.first_symbol())]:
-				if s == repr(empty_seq):
-					continue
-				first_set[str_seq].append(s)
-			for s in first_set[repr(beta)]:
-				first_set[str_seq].append(s)
+			return
+
+		
+		# 如果空串在FIRST(Y),那么FIRST(alpha) = (FIRST(Y) - {空串}) U FIRST(beta)
+		beta = SymbolSequence(seq.get_symbols(1,None)) #构建去掉首非终结符的剩余字符串
+		self.get_first_set_of_symbol_sequence(first_set, beta)
+		for s in first_set[repr(seq.first_symbol())]:
+			if s == repr(empty_seq):
+				continue
+			first_set[str_seq].append(s)
+		for s in first_set[repr(beta)]:
+			first_set[str_seq].append(s)
 
 	def get_first_set(self):
 		first_set = {}
 		for p in self.productions:
 			for seq in p.sym_seqs:
 				self.get_first_set_of_symbol_sequence(first_set, seq)
-
-
-	def get_first_set_of_production(self, first_set, p):
-		vn = repr(p.sym_left)
-		if vn in first_set:
-			return
-		# A -> alpha | beta
-		# FIRST(A) = FIRST(alpha) U FIRST(beta)
-		first_set[vn] = []
-		for seq in p.sym_seqs:
-			self.get_first_set_of_symbol_sequence(first_set, seq)
-			for item in first_set[repr(seq)]:
-				if item not in first_set[vn]:
-					first_set[vn].append(item)
+		return first_set
 
 	def get_follow_set_of_symbol(self, follow_set, sym):
 		if sym.is_vt() and sym.value not in follow_set:
@@ -566,14 +568,18 @@ class JsonGramma(object):
 		return follow_set
 
 	def check_LL1(self):
-		vts = []
-		for k,s in self.symbols.iteritems():
-			if s.is_vn():
-				vts.append(s)
+		# vts = []
+		# for k,s in self.symbols.iteritems():
+		# 	if s.is_vn():
+		# 		vts.append(s)
 
-		first_set = {}
-		for sym in vts:
-			self.get_first_set_of_symbol(first_set, sym)
+		# first_set = {}
+		# for sym in vts:
+		# 	self.get_first_set_of_symbol(first_set, sym)
+
+		# Get the first set through all the productions
+		first_set = self.get_first_set()
+
 
 		print '------------------------ first set ------------------------'
 		# print first_set
@@ -586,10 +592,26 @@ class JsonGramma(object):
 
 		print '------------------------ follow set -----------------------'
 		follow_set = {
-			repr(SYM_DICT[SYM_OBJ]):['#',],
+			self.symbols[SYM_OBJ]:['#',],
 		}
 
+
+		# https://www.cs.virginia.edu/~cs415/reading/FirstFollowLL.pdf
+		# Follow set are ONLY defined for nonterminals....
 		# 分析每个产生式的每个候选项
+		# 按照self.symbols的顺序计算每个vtn的followset
+		nvts = []
+		for sym,_ in self.symbols.iteritems():
+			if sym.is_vn():
+				nvts.append(sym)
+
+		for nvt in nvts:
+			for _, p in self.productions.iteritems():
+				# X -> aPb
+				# follow(p) = first(b) - {e}
+				for seq in p_seqs:
+
+
 		for s,p in self.productions.iteritems():
 			for seq in p.sym_seqs:
 				syms = seq.get_symbols(0, None)
