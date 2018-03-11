@@ -187,6 +187,30 @@ class SymbolSequence(object):
 		for sym in syms:
 			self.add_symbol(sym)
 
+	def contains_symbol(self, sym):
+		if sym.equal(self.seq[-1]):
+			return True, True
+
+		for _sym in self.seq:
+			if sym.equal(_sym):
+				return True,False
+		return False, False
+
+	def get_sub_sequence_after_symbol(self, sym):
+		if sym.equal(self.seq[-1]):
+			return SymbolSequence([])
+
+		seq = SymbolSequence([])
+		found = False
+		for _sym in self.seq:
+			if not found:
+				if sym.equal(_sym):
+					found = True
+			else:
+				seq.add_symbol(_sym)
+		return seq
+
+
 	def __repr__(self):
 		s = ""
 		if len(self.seq) == 0:
@@ -548,7 +572,7 @@ class JsonGramma(object):
 
 	def get_first_set(self):
 		first_set = {}
-		for p in self.productions:
+		for _, p in self.productions.iteritems():
 			for seq in p.sym_seqs:
 				self.get_first_set_of_symbol_sequence(first_set, seq)
 		return first_set
@@ -579,7 +603,7 @@ class JsonGramma(object):
 
 		# Get the first set through all the productions
 		first_set = self.get_first_set()
-
+		empty_seq = SymbolSequence([])
 
 		print '------------------------ first set ------------------------'
 		# print first_set
@@ -592,7 +616,7 @@ class JsonGramma(object):
 
 		print '------------------------ follow set -----------------------'
 		follow_set = {
-			self.symbols[SYM_OBJ]:['#',],
+			repr(self.symbols[SYM_OBJ]):['#',],
 		}
 
 
@@ -601,25 +625,81 @@ class JsonGramma(object):
 		# 分析每个产生式的每个候选项
 		# 按照self.symbols的顺序计算每个vtn的followset
 		nvts = []
-		for sym,_ in self.symbols.iteritems():
+		for _ , sym in self.symbols.iteritems():
 			if sym.is_vn():
 				nvts.append(sym)
 
-		for nvt in nvts:
-			for _, p in self.productions.iteritems():
-				# X -> aPb
-				# follow(p) = first(b) - {e}
-				for seq in p_seqs:
+		follow_set_changed = True
+		while follow_set_changed:
+			follow_set_changed = False
+			for nvt in nvts:
+				if repr(nvt) not in follow_set:
+					follow_set[repr(nvt)] = []
 
+				nvt_str = repr(nvt)
+				for ssym, p in self.productions.iteritems():
+				
+					if repr(p.sym_left) not in follow_set:
+						follow_set[repr(p.sym_left)] = []
 
-		for s,p in self.productions.iteritems():
-			for seq in p.sym_seqs:
-				syms = seq.get_symbols(0, None)
-				for sym in syms:
-					if sym.is_vn():
+					for seq in p.sym_seqs:
+						contained, last = seq.contains_symbol(nvt)
+						if not contained:
+							continue
+						
+						print 'Current Production %s -> <%s> '%(repr(p.sym_left),repr(seq)), 'Current Symbol %s' % repr(nvt)
+
+						# X -> aPb
+						if not last:
+
+							
+							beta_seq = seq.get_sub_sequence_after_symbol(nvt)
+							
+							print 'Get one of the Seq <%s>'%repr(beta_seq)
+
+							if repr(beta_seq) not in first_set:
+								print 'Seq:<%s> not in first set and cal the first set'%(repr(beta_seq))
+								self.get_first_set_of_symbol_sequence(first_set, beta_seq)
+							
+							print 'Seq:<%s> first set=%s'%(repr(beta_seq),repr(first_set[repr(beta_seq)]))
+
+							
+							# follow(p) = first(b) - {e}
+							first_seq = first_set[repr(beta_seq)]
+							for sym in first_seq:
+								if repr(sym) not in follow_set[nvt_str] and repr(sym) != repr(empty_seq):
+									follow_set[nvt_str].append(repr(sym))
+									print 'FollowSet(%s)=%s'%(nvt_str, repr(follow_set[nvt_str]))
+									follow_set_changed = True
+							
+							# 如果 {e} in first(b)
+							# follow(p) U= follow(X)
+							if repr(empty_seq) in first_seq:
+								for fsym in follow_set[repr(p.sym_left)]:
+									if fsym not in follow_set[nvt_str]:
+										follow_set[nvt_str].append(fsym)
+										print 'FollowSet(%s)=%s'%(nvt_str, repr(follow_set[nvt_str]))
+										follow_set_changed = True
+
+							continue
+
+						# 如果 X->aP
+						# follow(p) U= follow(X)
+						for fsym in follow_set[repr(p.sym_left)]:
+							if fsym not in follow_set[nvt_str]:
+								follow_set[nvt_str].append(fsym)
+								print 'FollowSet(%s)=%s'%(nvt_str, repr(follow_set[nvt_str]))
+								follow_set_changed = True
 						
 
-		print follow_set
+		# print first_set
+		for k, v in follow_set.iteritems():
+			line = "NVT<"+k+">" + '\t\t\t';
+			for vv in v:
+				line = line + repr(vv) + ','
+			line = line[:-1]
+			print line 
+		
 
 
 
@@ -631,8 +711,6 @@ a = JsonGramma()
 a.dump()
 a.remove_indirect_left_recursion()
 print '----------------------- after remove left recursion --------------------------'
-a.dump()
-print '-------------------------------------------'
 a.dump()
 a.check_LL1()
 
