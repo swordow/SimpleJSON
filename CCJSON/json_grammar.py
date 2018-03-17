@@ -56,20 +56,21 @@ SYM_ONE = 45
 SYM_TWO = 46
 SYM_THREE = 47
 SYM_FOUR =  48
-SYM_FIVE = 47
-SYM_SIX = 48
-SYM_SEVEN = 49
-SYM_EIGHT = 50
-SYM_NINE = 51
-SYM_ZERO = 52
+SYM_FIVE = 49
+SYM_SIX = 50
+SYM_SEVEN = 51
+SYM_EIGHT = 52
+SYM_NINE = 53
+SYM_ZERO = 54
 
-SYM_DIGIT = 53
-SYM_DIGITS = 54
+SYM_DIGIT = 55
+SYM_DIGITS = 56
 
-SYM_ANY_CHAR = 55
+SYM_ANY_CHAR = 57
 
-SYM_DIGIT1_9 = 56
+SYM_DIGIT1_9 = 58
 
+global SYM_DICT
 SYM_DICT = {
 	SYM_OBJ:"SYM_OBJ",
 	SYM_EP:"SYM_EP",
@@ -139,16 +140,29 @@ SYM_DICT = {
 	SYM_DIGIT1_9 : "SYM_DIGIT1_9"
 }
 
-'''
-	1. 空串是VN还是VT
-'''
 class SymbolSet(object):
 	def __init__(self):
 		super(SymbolSet, self).__init__()
-		self.ss = []
+		self.sym = []
+		self.sym_str = []
 
 	def append(self, symbol):
-		pass
+		if symbol == '#':
+			self.sym_str.append('#')
+			return
+		self.sym.append(symbol)
+		self.sym_str.append(repr(symbol))
+	
+	def has(self, symbol):
+		return (repr(symbol) in self.sym_str)
+
+	def all_symbols(self):
+		return self.sym
+
+	def __repr__(self):
+		return repr(self.sym_str)
+
+
 # 符号串
 class SymbolSequence(object):
 	def __init__(self, seq):
@@ -170,6 +184,9 @@ class SymbolSequence(object):
 
 	def symbol(self, i):
 		return self.seq[i]
+
+	def remove_first_symbol(self):
+		self.seq = self.seq[1:]
 
 	def get_symbols(self, start, end):
 		return self.seq[start:end]
@@ -219,6 +236,9 @@ class SymbolSequence(object):
 			s += " "+repr(self.seq[i])
 		return s
 
+	def repr(self):
+		return repr(self)
+
 class Production(object):
 	def __init__(self, sym_left, sym_rights):
 		super(Production, self).__init__()
@@ -233,6 +253,7 @@ class Production(object):
 			out += repr(ss) + ' | '
 		return out[:-2]
 
+	# wrong...
 	def remove_indirect_left_recursion(self, production):
 		n_rights = []
 		# 遍历自己的所有候选符号串
@@ -251,6 +272,41 @@ class Production(object):
 			else:
 				n_rights.append(candidate_seq)
 		self.sym_seqs = n_rights
+
+	def adjust_common_left_symbol(self, gramma):
+		sts = {}
+		new_productions = {}
+		bak_sym_seqs = self.sym_seqs
+		self.sym_seqs = []
+		
+		for seq in bak_sym_seqs:
+			if seq.first_symbol().is_vt():
+				if seq.first_symbol().repr() not in sts:
+					sts[seq.first_symbol().repr()] = []
+				sts[seq.first_symbol().repr()].append(seq)
+			else:
+				self.sym_seqs.append(seq)
+				
+		
+		for sym_str, seq_list in sts.iteritems():
+			if len(seq_list) < 2:
+				self.sym_seqs.append(seq_list[0])
+				continue
+			sym = seq_list[0].first_symbol()
+			extend_code = gramma.get_extend_symbol_code()
+			extend_symbol = self.sym_left.produce_extend_symbol(extend_code)
+			extend_production = Production(extend_symbol, [])
+			for seq in seq_list:
+				cloned = seq.clone()
+				cloned.remove_first_symbol()
+				extend_production.sym_seqs.append(cloned)
+			new_productions[extend_code] = extend_production
+			extend_seq = SymbolSequence([sym, extend_symbol])
+			self.sym_seqs.append(extend_seq)
+
+		return new_productions
+
+
 
 class Symbol(object):
 	'''
@@ -284,14 +340,23 @@ class Symbol(object):
 			return self.value
 		else:
 			return SYM_DICT[self.value]
+
+	def repr(self):
+		return repr(self)
+
+	def produce_extend_symbol(self, extend_code):
+		assert(self.type == ST_VN)
+		ret = Symbol(self.type, extend_code)
+		global SYM_DICT
+		SYM_DICT[extend_code] = self.repr() + '_EXTEND_'+repr(extend_code)
+		return ret
 		
 
 class JsonGramma(object):
 	
 
-
 	def __init__(self):
-
+		self.extend_sym_code = 1000
 		self.vn = SymbolSet()
 		self.productions = []
 		self.symbols = {
@@ -366,7 +431,7 @@ class JsonGramma(object):
 				self.symbols[SYM_OBJ], [
 				[self.symbols[SYM_LEFT_BRACE], self.symbols[SYM_RIGHT_BRACE]],
 				[self.symbols[SYM_LEFT_BRACE], self.symbols[SYM_MEMBERS], self.symbols[SYM_RIGHT_BRACE]]
-				]),
+				]), #SYM_OBJ -> {} | { SYM_MEMBERS }  // 意味着需要提取公共左因子 
 			SYM_MEMBERS:Production(
 				self.symbols[SYM_MEMBERS],[
 				[self.symbols[SYM_PAIR]],
@@ -494,6 +559,11 @@ class JsonGramma(object):
 				]),
 		}
 
+	def get_extend_symbol_code(self):
+		ret = self.extend_sym_code
+		self.extend_sym_code += 1
+		return ret
+
 	def dump(self):
 		for s,p in self.productions.iteritems():
 			print p.dump();
@@ -518,6 +588,16 @@ class JsonGramma(object):
 				PB = self.productions[B.value]
 				PA.remove_indirect_left_recursion(PB)
 
+	def adjust_common_left_symbol(self):
+		bak_productions = self.productions
+		self.productions = {}
+		for sym_code, production in bak_productions.iteritems():
+			new_productions = production.adjust_common_left_symbol(self)
+			self.productions[sym_code] = production
+			for extend_code, extend_p in new_productions.iteritems():
+				self.productions[extend_code] = extend_p
+				self.symbols[extend_code] = extend_p.sym_left
+
 	def get_first_set_of_symbol(self, first_set, sym):
 		if (repr(sym)) in first_set:
 			return
@@ -533,11 +613,11 @@ class JsonGramma(object):
 			return
 		# A -> alpha | beta
 		# FIRST(A) = FIRST(alpha) U FIRST(beta)
-		first_set[vn] = []
+		first_set[vn] = SymbolSet()
 		for seq in p.sym_seqs:
 			self.get_first_set_of_symbol_sequence(first_set, seq)
-			for item in first_set[repr(seq)]:
-				if item not in first_set[vn]:
+			for item in first_set[repr(seq)].all_symbols():
+				if not first_set[vn].has(item):
 					first_set[vn].append(item)
 
 	def get_first_set_of_symbol_sequence(self, first_set, seq):
@@ -546,16 +626,17 @@ class JsonGramma(object):
 		str_seq = repr(seq)
 		empty_seq = SymbolSequence([])
 		if seq.first_symbol().is_vt():
-			first_set[str_seq] = [repr(seq.first_symbol()),]
+			first_set[str_seq] = SymbolSet()
+			first_set[str_seq].append(seq.first_symbol())
 			return
 		
-		first_set[str_seq] = []
+		first_set[str_seq] = SymbolSet()
 		if repr(seq.first_symbol()) not in first_set:
 			self.get_first_set_of_symbol(first_set, seq.first_symbol())
 		
 		# 如果空串不在FIRST(Y),那么FIRST(alpha) = FIRST(Y)
-		if repr(empty_seq) not in first_set[repr(seq.first_symbol())]:
-			for item in first_set[repr(seq.first_symbol())]:
+		if not first_set[repr(seq.first_symbol())].has(empty_seq):
+			for item in first_set[repr(seq.first_symbol())].all_symbols():
 				first_set[str_seq].append(item)
 			return
 
@@ -563,33 +644,25 @@ class JsonGramma(object):
 		# 如果空串在FIRST(Y),那么FIRST(alpha) = (FIRST(Y) - {空串}) U FIRST(beta)
 		beta = SymbolSequence(seq.get_symbols(1,None)) #构建去掉首非终结符的剩余字符串
 		self.get_first_set_of_symbol_sequence(first_set, beta)
-		for s in first_set[repr(seq.first_symbol())]:
-			if s == repr(empty_seq):
+		for s in first_set[repr(seq.first_symbol())].all_symbols():
+			if repr(s) == repr(empty_seq):
 				continue
 			first_set[str_seq].append(s)
-		for s in first_set[repr(beta)]:
+		for s in first_set[repr(beta)].all_symbols():
 			first_set[str_seq].append(s)
 
 	def get_first_set(self):
 		first_set = {}
 		for _, p in self.productions.iteritems():
 			for seq in p.sym_seqs:
-				self.get_first_set_of_symbol_sequence(first_set, seq)
+				if repr(seq) == repr(SymbolSequence([])):
+					assert(p.sym_left.is_vn())
+					if p.sym_left.repr not in first_set:
+						first_set[p.sym_left.repr()] = SymbolSet()
+					first_set[p.sym_left.repr()].append(SymbolSequence([]))
+				else:	
+					self.get_first_set_of_symbol_sequence(first_set, seq)
 		return first_set
-
-	def get_follow_set_of_symbol(self, follow_set, sym):
-		if sym.is_vt() and sym.value not in follow_set:
-			follow_set.append(sym.value)
-			return follow_set
-
-		if sym.is_vn():
-			return self.get_follow_set_of_production(follow_set, self.productions[sym.value])
-
-	def get_follow_set_of_production(self, follow_set, p):
-		for item in p.sym_rights:
-			self.get_follow_set_of_symbol(follow_set, item[-1])
-
-		return follow_set
 
 	def check_LL1(self):
 		# vts = []
@@ -609,17 +682,18 @@ class JsonGramma(object):
 		# print first_set
 		for k, v in first_set.iteritems():
 			line = "SEQ<"+k+">" + '\t\t\t';
-			for vv in v:
+			for vv in v.all_symbols():
 				line = line + repr(vv) + ','
 			line = line[:-1]
 			print line 
 
 		print '------------------------ follow set -----------------------'
+		
 		follow_set = {
-			repr(self.symbols[SYM_OBJ]):['#',],
+			repr(self.symbols[SYM_OBJ]):SymbolSet(),
 		}
 
-
+		follow_set[repr(self.symbols[SYM_OBJ])].append('#')
 		# https://www.cs.virginia.edu/~cs415/reading/FirstFollowLL.pdf
 		# Follow set are ONLY defined for nonterminals....
 		# 分析每个产生式的每个候选项
@@ -634,13 +708,13 @@ class JsonGramma(object):
 			follow_set_changed = False
 			for nvt in nvts:
 				if repr(nvt) not in follow_set:
-					follow_set[repr(nvt)] = []
+					follow_set[repr(nvt)] = SymbolSet()
 
 				nvt_str = repr(nvt)
 				for ssym, p in self.productions.iteritems():
 				
 					if repr(p.sym_left) not in follow_set:
-						follow_set[repr(p.sym_left)] = []
+						follow_set[repr(p.sym_left)] = SymbolSet()
 
 					for seq in p.sym_seqs:
 						contained, last = seq.contains_symbol(nvt)
@@ -665,18 +739,18 @@ class JsonGramma(object):
 
 							
 							# follow(p) = first(b) - {e}
-							first_seq = first_set[repr(beta_seq)]
+							first_seq = first_set[repr(beta_seq)].all_symbols()
 							for sym in first_seq:
-								if repr(sym) not in follow_set[nvt_str] and repr(sym) != repr(empty_seq):
-									follow_set[nvt_str].append(repr(sym))
+								if not follow_set[nvt_str].has(sym) and repr(sym) != repr(empty_seq):
+									follow_set[nvt_str].append(sym)
 									print 'FollowSet(%s)=%s'%(nvt_str, repr(follow_set[nvt_str]))
 									follow_set_changed = True
 							
 							# 如果 {e} in first(b)
 							# follow(p) U= follow(X)
 							if repr(empty_seq) in first_seq:
-								for fsym in follow_set[repr(p.sym_left)]:
-									if fsym not in follow_set[nvt_str]:
+								for fsym in follow_set[repr(p.sym_left)].all_symbols():
+									if not follow_set[nvt_str].has(fsym):
 										follow_set[nvt_str].append(fsym)
 										print 'FollowSet(%s)=%s'%(nvt_str, repr(follow_set[nvt_str]))
 										follow_set_changed = True
@@ -685,8 +759,8 @@ class JsonGramma(object):
 
 						# 如果 X->aP
 						# follow(p) U= follow(X)
-						for fsym in follow_set[repr(p.sym_left)]:
-							if fsym not in follow_set[nvt_str]:
+						for fsym in follow_set[repr(p.sym_left)].all_symbols():
+							if not follow_set[nvt_str].has(fsym):
 								follow_set[nvt_str].append(fsym)
 								print 'FollowSet(%s)=%s'%(nvt_str, repr(follow_set[nvt_str]))
 								follow_set_changed = True
@@ -695,11 +769,43 @@ class JsonGramma(object):
 		# print first_set
 		for k, v in follow_set.iteritems():
 			line = "NVT<"+k+">" + '\t\t\t';
-			for vv in v:
+			for vv in v.all_symbols():
 				line = line + repr(vv) + ','
 			line = line[:-1]
 			print line 
-		
+
+		m = self.make_predict_table(first_set, follow_set)
+		print m
+
+	# 1. 空串既不是终结符，也不是非终结符
+	def make_predict_table(self, first_set, follow_set):
+		M = {}
+		for sym_code, p in self.productions.iteritems():
+			if repr(p.sym_left) not in M:
+				M[repr(p.sym_left)] = {}
+			for seq in p.sym_seqs:
+				_first_set = first_set[repr(seq)]
+				for sym in _first_set.all_symbols():
+					if sym.is_vt():
+						if repr(sym) in M[repr(p.sym_left)]:
+							l, s = M[repr(p.sym_left)][repr(sym)]
+							if repr(l) != repr(p.sym_left) or repr(s) != repr(seq):
+								print 'Current First Seq is %s Set is %s'%(repr(seq),repr(_first_set))
+								print 'M[%s, %s] = %s already exists!'%(repr(p.sym_left), repr(sym), repr((l, s)))
+								print 'ERRRRRRRRRRRRRRRRRRRRRRRRRRRR'
+								return
+						M[repr(p.sym_left)][repr(sym)] = (p.sym_left, seq)
+						continue
+					
+					if repr(sym) == repr(SymbolSequence([])):
+						for fsym in follow_set[repr(p.sym_left)].all_symbols():
+							if repr(fsym) in M[repr(p.sym_left)]:
+								print 'M[%s, %s] already exists!'%(repr(p.sym_left), repr(fsym))
+								print 'ERRRRRRRRRRRRRRRRRRRRRRRRRRRRR'
+								return
+							M[repr(p.sym_left)][repr(fsym)] = (p.sym_left, seq)
+		return M			
+
 
 
 
@@ -708,9 +814,14 @@ class JsonGramma(object):
 			
 
 a = JsonGramma()
+print '----------------------- RAW --------------------------'
 a.dump()
-a.remove_indirect_left_recursion()
-print '----------------------- after remove left recursion --------------------------'
+#a.remove_indirect_left_recursion()
+print '----------------------- After adjust common left symbol --------------------------'
+a.adjust_common_left_symbol()
 a.dump()
+#print '----------------------- after remove left recursion --------------------------'
+#a.dump()
+print '----------------------- Check LL1 --------------------------'
 a.check_LL1()
 
