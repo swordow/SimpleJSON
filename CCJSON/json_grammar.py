@@ -280,12 +280,25 @@ class Production(object):
 		self.sym_seqs = []
 		
 		for seq in bak_sym_seqs:
+			# 空串
+			if seq.is_empty_sequence():
+				self.sym_seqs.append(seq)
+				continue
+
+			# 如果是终结符
 			if seq.first_symbol().is_vt():
 				if seq.first_symbol().repr() not in sts:
 					sts[seq.first_symbol().repr()] = []
 				sts[seq.first_symbol().repr()].append(seq)
-			else:
-				self.sym_seqs.append(seq)
+				continue
+
+			# 如果是非终结符
+			if seq.first_symbol().repr() not in sts:
+				sts[seq.first_symbol().repr()] = []
+			sts[seq.first_symbol().repr()].append(seq)
+			continue
+
+			self.sym_seqs.append(seq)
 				
 		
 		for sym_str, seq_list in sts.iteritems():
@@ -300,7 +313,11 @@ class Production(object):
 				cloned = seq.clone()
 				cloned.remove_first_symbol()
 				extend_production.sym_seqs.append(cloned)
+
+			for ec, ep in new_productions.iteritems():
+				
 			new_productions[extend_code] = extend_production
+				
 			extend_seq = SymbolSequence([sym, extend_symbol])
 			self.sym_seqs.append(extend_seq)
 
