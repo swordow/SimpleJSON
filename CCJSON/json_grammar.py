@@ -169,10 +169,12 @@ class SymbolSequence(object):
 		self.seq = seq
 
 	def equal(self, seq):
-		if len(self.seq) != len(seq):
+		return self.repr() == seq.repr()
+
+		if len(self.seq) != len(seq.seq):
 			return False
-		for i in xrange(len(seq)):
-			if self.seq[i] != seq[i]:
+		for i in xrange(len(seq.seq)):
+			if self.seq[i].repr() != seq.seq[i]:
 				return False
 		return True
 
@@ -273,6 +275,21 @@ class Production(object):
 				n_rights.append(candidate_seq)
 		self.sym_seqs = n_rights
 
+	def equal(self, production):
+		if not len (production.sym_seqs) == len(self.sym_seqs):
+			return False
+		
+		for seq in self.sym_seqs:
+			found = False
+			for oseq in production.sym_seqs:
+				#print 'compare', seq.repr(), oseq.repr(), seq.__class__, oseq.__class__
+				if seq.equal(oseq):
+					found = True
+					break
+			if not found:
+				return False
+		return True
+
 	def adjust_common_left_symbol(self, gramma):
 		sts = {}
 		new_productions = {}
@@ -314,11 +331,21 @@ class Production(object):
 				cloned.remove_first_symbol()
 				extend_production.sym_seqs.append(cloned)
 
+			# 提取公共左因子之后，会产生，不一样的扩展非终结符，但是却有一样的产生式
+			# 比如现在碰到的
+			# SYM_EXP_E_EXTEND_1007 -> es |  + |  -
+			# SYM_EXP_E_EXTEND_1008 -> es |  + |  -
+			dup_extend_symbol = None
 			for ec, ep in new_productions.iteritems():
-				
-			new_productions[extend_code] = extend_production
-				
-			extend_seq = SymbolSequence([sym, extend_symbol])
+				if extend_production.equal(ep):
+					dup_extend_symbol = ec
+					print 'Notification!! Merge same production with different VN', SYM_DICT[ec], extend_symbol
+					break
+			if dup_extend_symbol is None:	
+				new_productions[extend_code] = extend_production
+				extend_seq = SymbolSequence([sym, extend_symbol])
+			else:
+				extend_seq = SymbolSequence([sym, dup_extend_symbol])
 			self.sym_seqs.append(extend_seq)
 
 		return new_productions
