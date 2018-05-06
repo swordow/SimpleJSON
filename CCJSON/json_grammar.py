@@ -559,10 +559,8 @@ class JsonGramma(object):
 				]),
 			SYM_INT:Production(
 				self.symbols[SYM_INT],[
-				[self.symbols[SYM_DIGIT]],
-				[self.symbols[SYM_DIGIT1_9], self.symbols[SYM_DIGITS]],
-				[self.symbols[SYM_MINUS], self.symbols[SYM_DIGIT]],
-				[self.symbols[SYM_MINUS], self.symbols[SYM_DIGIT1_9], self.symbols[SYM_DIGITS]]
+				[self.symbols[SYM_DIGITS]],
+				[self.symbols[SYM_MINUS], self.symbols[SYM_DIGITS]]
 				]),
 			SYM_FRAC:Production(
 				self.symbols[SYM_FRAC],[
@@ -886,13 +884,15 @@ class JsonGramma(object):
 			if repr(p.sym_left) not in M:
 				M[repr(p.sym_left)] = {}
 			for seq in p.sym_seqs:
+				if repr(seq) == repr(SymbolSequence([])):
+					continue
 				_first_set = first_set.first_set[repr(seq)]
 				for sym in _first_set.all_symbols():
 					if sym.is_vt():
 						if repr(sym) in M[repr(p.sym_left)]:
 							l, s = M[repr(p.sym_left)][repr(sym)]
 							if repr(l) != repr(p.sym_left) or repr(s) != repr(seq):
-								print 'Current First Seq is %s Set is %s'%(repr(seq),repr(_first_set))
+								print 'Current First Seq is %s -> %s Set is %s'%(repr(p.sym_left), repr(seq),repr(_first_set))
 								print 'M[%s, %s] = %s already exists!'%(repr(p.sym_left), repr(sym), repr((l, s)))
 								print 'ERRRRRRRRRRRRRRRRRRRRRRRRRRRR'
 								return
@@ -919,6 +919,9 @@ a = JsonGramma()
 print '----------------------- RAW --------------------------'
 a.dump()
 #a.remove_indirect_left_recursion()
+print '----------------------- After adjust common left symbol --------------------------'
+a.adjust_common_left_symbol()
+a.dump()
 print '----------------------- After adjust common left symbol --------------------------'
 a.adjust_common_left_symbol()
 a.dump()
