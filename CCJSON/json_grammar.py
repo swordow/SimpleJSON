@@ -162,6 +162,27 @@ class SymbolSet(object):
 	def __repr__(self):
 		return repr(self.sym_str)
 
+class FirstSet(object):
+	def __init__(self):
+		self.dirty = True
+		self.first_set = {}
+
+	def add(self, sym_str):
+		self.first_set[sym_str] = SymbolSet()
+		self.dirty = True
+
+	def check(self, sym_str):
+		return sym_str in self.first_set
+
+	def append(self, sym_str, symbol):
+		self.first_set[sym_str].append(symbol)
+		self.dirty = True
+	
+	def has(self, sym_str, symbol):
+		return self.first_set[sym_str].has(symbol)
+
+	def all_symbols(self, sym_str):
+		return self.first_set[sym_str].all_symbols()
 
 # 符号串
 class SymbolSequence(object):
@@ -177,6 +198,9 @@ class SymbolSequence(object):
 			if self.seq[i].repr() != seq.seq[i]:
 				return False
 		return True
+
+	def symbols(self):
+		return self.seq
 
 	def first_symbol(self):
 		return self.seq[0]
@@ -338,7 +362,7 @@ class Production(object):
 			dup_extend_symbol = None
 			for ec, ep in new_productions.iteritems():
 				if extend_production.equal(ep):
-					dup_extend_symbol = ec
+					dup_extend_symbol = ep.sym_left
 					print 'Notification!! Merge same production with different VN', SYM_DICT[ec], extend_symbol
 					break
 			if dup_extend_symbol is None:	
@@ -643,70 +667,100 @@ class JsonGramma(object):
 				self.symbols[extend_code] = extend_p.sym_left
 
 	def get_first_set_of_symbol(self, first_set, sym):
-		if (repr(sym)) in first_set:
+		sym_str = sym.repr()
+		if not first_set.check(sym_str):
+			first_set.add(sym_str)
+		else:
 			return
 
 		if sym.is_vt():
-			assert(0)
+			if not first_set.has(sym_str, sym):
+				first_set.append(sym_str, sym)
+			return
 
 		return self.get_first_set_of_production(first_set, self.productions[sym.value])
 
 	def get_first_set_of_production(self, first_set, p):
-		vn = repr(p.sym_left)
-		if vn in first_set:
-			return
-		# A -> alpha | beta
-		# FIRST(A) = FIRST(alpha) U FIRST(beta)
-		first_set[vn] = SymbolSet()
+		vn_str = repr(p.sym_left)
+		if not first_set.check(vn_str):
+			first_set.add(vn_str)
+
 		for seq in p.sym_seqs:
-			self.get_first_set_of_symbol_sequence(first_set, seq)
-			for item in first_set[repr(seq)].all_symbols():
-				if not first_set[vn].has(item):
-					first_set[vn].append(item)
-
-	def get_first_set_of_symbol_sequence(self, first_set, seq):
-		if repr(seq) in first_set:
-			return 
-		str_seq = repr(seq)
-		empty_seq = SymbolSequence([])
-		if seq.first_symbol().is_vt():
-			first_set[str_seq] = SymbolSet()
-			first_set[str_seq].append(seq.first_symbol())
-			return
-		
-		first_set[str_seq] = SymbolSet()
-		if repr(seq.first_symbol()) not in first_set:
-			self.get_first_set_of_symbol(first_set, seq.first_symbol())
-		
-		# 如果空串不在FIRST(Y),那么FIRST(alpha) = FIRST(Y)
-		if not first_set[repr(seq.first_symbol())].has(empty_seq):
-			for item in first_set[repr(seq.first_symbol())].all_symbols():
-				first_set[str_seq].append(item)
-			return
-
-		
-		# 如果空串在FIRST(Y),那么FIRST(alpha) = (FIRST(Y) - {空串}) U FIRST(beta)
-		beta = SymbolSequence(seq.get_symbols(1,None)) #构建去掉首非终结符的剩余字符串
-		self.get_first_set_of_symbol_sequence(first_set, beta)
-		for s in first_set[repr(seq.first_symbol())].all_symbols():
-			if repr(s) == repr(empty_seq):
+			# X -> es  then FIRST(X) add es
+			if seq.repr() == SymbolSequence([]).repr():
+				if not first_set.has(vn_str, seq):
+					first_set.append(vn_str, seq)
 				continue
-			first_set[str_seq].append(s)
-		for s in first_set[repr(beta)].all_symbols():
-			first_set[str_seq].append(s)
 
+			# X->Y1Y2 | Y3Y4 | Y5Y6
+			# FIRST(X) = FRIST(Y1Y2) U FIRST(Y3Y4) U FIRST(Y5Y6)
+			self.get_first_set_of_symbol_sequence(first_set, seq)
+			for item in first_set.all_symbols(repr(seq)):
+				if not first_set.has(vn_str, item):
+					first_set.append(vn_str, item)
+
+	# SEQ-> Y1Y2Y3Y4Y5
+	def get_first_set_of_symbol_sequence(self, first_set, seq):
+		assert (seq.repr() != SymbolSequence([]).repr())
+		
+		str_seq = repr(seq)
+		
+		if not first_set.check(str_seq):
+			 first_set.add(str_seq)
+
+		empty_seq_mark = [False]*len(seq.symbols())
+		empty_seq = SymbolSequence([])
+		empty_seq_count = 0
+		first_sym_has_empty_seq_idx = -1
+		for i in xrange(len(seq.symbols())):
+			sym = seq.symbols()[i]
+			self.get_first_set_of_symbol(first_set, sym)
+			if first_set.has(sym.repr(), empty_seq):
+				empty_seq_mark[i] = True
+				if first_sym_has_empty_seq_idx < 0:
+					first_sym_has_empty_seq_idx = i
+				empty_seq_count += 1
+
+		if empty_seq_count == len(seq.symbols()): # all symbols has empty seq in first set
+			if not first_set.has(str_seq, empty_seq):
+				first_set.append(str_seq, empty_seq)
+
+		# add FIRST(Y1) to FIRST(seq)
+		for sym in first_set.all_symbols(seq.first_symbol().repr()):
+			if not first_set.has(str_seq, sym):
+				first_set.append(str_seq, sym)
+
+		#print 'EMPTY SEQ NARK',empty_seq_mark
+
+		# if FIRST(Y1) has empty seq
+		# add FIRST(Y2) to seq
+		# if FIRST(Y2) has empty seq
+		# add FIRST(Y3) to seq
+		# and so on
+		for idx in xrange(len(empty_seq_mark)-1):
+			if empty_seq_mark[idx]:
+				# add FIRST(Yidx+1) to FIRST(seq)
+				sym_idx_1 = seq.symbols()[idx+1]
+				for sym in first_set.all_symbols(sym_idx_1.repr()):
+					if not first_set.has(str_seq, sym):
+						first_set.append(str_seq, sym)
+			else:
+				break
+		
+	# FIRST(X)
+	# if X is terminal then FIRST(X) = {x}
+	# if X is nonterminal and X->Y1Y2Y3Yk
+	# if es in all Yj ( 1 <= j <= k), then es add to FIRST(X)
+	# if es in all Yj ( 1 <= j < i), then FIRST(Yi) add to FIRST(X)
 	def get_first_set(self):
-		first_set = {}
-		for _, p in self.productions.iteritems():
-			for seq in p.sym_seqs:
-				if repr(seq) == repr(SymbolSequence([])):
-					assert(p.sym_left.is_vn())
-					if p.sym_left.repr not in first_set:
-						first_set[p.sym_left.repr()] = SymbolSet()
-					first_set[p.sym_left.repr()].append(SymbolSequence([]))
-				else:	
-					self.get_first_set_of_symbol_sequence(first_set, seq)
-		return first_set
+		fs = FirstSet()
+		while fs.dirty:
+			print 'XXXXXXXXXXXXXXXXXX'
+			fs.dirty = False
+			for _, p in self.productions.iteritems():
+				self.get_first_set_of_production(fs , p)
+		
+		return fs.first_set
 
 	def check_LL1(self):
 		# vts = []
@@ -725,7 +779,7 @@ class JsonGramma(object):
 		print '------------------------ first set ------------------------'
 		# print first_set
 		for k, v in first_set.iteritems():
-			line = "SEQ<"+k+">" + '\t\t\t';
+			line = "<"+k+">" + '\t\t\t';
 			for vv in v.all_symbols():
 				line = line + repr(vv) + ','
 			line = line[:-1]
