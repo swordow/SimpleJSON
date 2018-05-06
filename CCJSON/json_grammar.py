@@ -211,6 +211,11 @@ class SymbolSequence(object):
 	def symbol(self, i):
 		return self.seq[i]
 
+	def get_first_non_terminal_symbol(self):
+		for sym in self.seq:
+			if sym.is_vn():
+				return sym
+
 	def remove_first_symbol(self):
 		self.seq = self.seq[1:]
 
@@ -875,7 +880,10 @@ class JsonGramma(object):
 		print '------------------------ make_predict_table -----------------------'
 
 		m = self.make_predict_table(first_set, follow_set)
-		print m
+
+		for _sym, _token in m.iteritems():
+			for _i, p in m[_sym].iteritems():
+				print '[%s, %s] -> %s'%(_sym, _i, p)
 
 	# 1. 空串既不是终结符，也不是非终结符
 	def make_predict_table(self, first_set, follow_set):
@@ -906,9 +914,29 @@ class JsonGramma(object):
 								print 'ERRRRRRRRRRRRRRRRRRRRRRRRRRRRR'
 								return
 							M[repr(p.sym_left)][repr(fsym)] = (p.sym_left, seq)
+		self.M = M
 		return M			
 
-
+	def check_json(self, json_str):
+		stack = [self.symbols[SYM_OBJ].repr(),]
+		stack_top = 0
+		for token in json_str:
+			for sym in self.symbols.values():
+				if token == sym.repr():
+					seq = self.M[stack[stack_top]][sym.repr()][1]
+					vnt = seq.get_first_non_terminal_symbol()
+					print 'stack top: ', stack[stack_top], ' token: ', token
+					print ' using production: ', self.M[stack[stack_top]][sym.repr()]
+					while (vnt.repr() in self.M  and token in self.M[vnt.repr()]):
+						print ' using production: ', self.M[vnt.repr()][token] 
+						seq = self.M[vnt.repr()][token][1]
+						vnt = seq.get_first_non_terminal_symbol()
+						if seq.first_symbol().repr() == token:
+							break
+					print ' push stack: ',vnt
+					stack.append(vnt.repr())
+					stack_top += 1
+					break
 
 
 
@@ -929,4 +957,7 @@ a.dump()
 #a.dump()
 print '----------------------- Check LL1 --------------------------'
 a.check_LL1()
+print '------------------------------- test ------------------------------'
+json = '{"a":"dsadsadas", "b":0012312,  "c":1231.2e213}'
+a.check_json(json)
 
