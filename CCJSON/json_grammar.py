@@ -760,7 +760,7 @@ class JsonGramma(object):
 			for _, p in self.productions.iteritems():
 				self.get_first_set_of_production(fs , p)
 		
-		return fs.first_set
+		return fs
 
 	def check_LL1(self):
 		# vts = []
@@ -778,7 +778,7 @@ class JsonGramma(object):
 
 		print '------------------------ first set ------------------------'
 		# print first_set
-		for k, v in first_set.iteritems():
+		for k, v in first_set.first_set.iteritems():
 			line = "<"+k+">" + '\t\t\t';
 			for vv in v.all_symbols():
 				line = line + repr(vv) + ','
@@ -815,11 +815,14 @@ class JsonGramma(object):
 						follow_set[repr(p.sym_left)] = SymbolSet()
 
 					for seq in p.sym_seqs:
+						if seq.is_empty_sequence():
+							continue
+
 						contained, last = seq.contains_symbol(nvt)
 						if not contained:
 							continue
 						
-						print 'Current Production %s -> <%s> '%(repr(p.sym_left),repr(seq)), 'Current Symbol %s' % repr(nvt)
+						#print 'Current Production %s -> <%s> '%(repr(p.sym_left),repr(seq)), 'Current Symbol %s' % repr(nvt)
 
 						# X -> aPb
 						if not last:
@@ -827,21 +830,21 @@ class JsonGramma(object):
 							
 							beta_seq = seq.get_sub_sequence_after_symbol(nvt)
 							
-							print 'Get one of the Seq <%s>'%repr(beta_seq)
+							#print 'Get one of the Seq <%s>'%repr(beta_seq)
 
-							if repr(beta_seq) not in first_set:
-								print 'Seq:<%s> not in first set and cal the first set'%(repr(beta_seq))
+							if not first_set.check(repr(beta_seq)):
+								#print 'Seq:<%s> not in first set and cal the first set'%(repr(beta_seq))
 								self.get_first_set_of_symbol_sequence(first_set, beta_seq)
 							
-							print 'Seq:<%s> first set=%s'%(repr(beta_seq),repr(first_set[repr(beta_seq)]))
+							#print 'Seq:<%s> first set=%s'%(repr(beta_seq),repr(first_set.all_symbols(repr(beta_seq))))
 
 							
 							# follow(p) = first(b) - {e}
-							first_seq = first_set[repr(beta_seq)].all_symbols()
+							first_seq = first_set.all_symbols(repr(beta_seq))
 							for sym in first_seq:
 								if not follow_set[nvt_str].has(sym) and repr(sym) != repr(empty_seq):
 									follow_set[nvt_str].append(sym)
-									print 'FollowSet(%s)=%s'%(nvt_str, repr(follow_set[nvt_str]))
+									#print 'FollowSet(%s)=%s'%(nvt_str, repr(follow_set[nvt_str]))
 									follow_set_changed = True
 							
 							# 如果 {e} in first(b)
@@ -850,7 +853,7 @@ class JsonGramma(object):
 								for fsym in follow_set[repr(p.sym_left)].all_symbols():
 									if not follow_set[nvt_str].has(fsym):
 										follow_set[nvt_str].append(fsym)
-										print 'FollowSet(%s)=%s'%(nvt_str, repr(follow_set[nvt_str]))
+										#print 'FollowSet(%s)=%s'%(nvt_str, repr(follow_set[nvt_str]))
 										follow_set_changed = True
 
 							continue
@@ -860,7 +863,7 @@ class JsonGramma(object):
 						for fsym in follow_set[repr(p.sym_left)].all_symbols():
 							if not follow_set[nvt_str].has(fsym):
 								follow_set[nvt_str].append(fsym)
-								print 'FollowSet(%s)=%s'%(nvt_str, repr(follow_set[nvt_str]))
+								#print 'FollowSet(%s)=%s'%(nvt_str, repr(follow_set[nvt_str]))
 								follow_set_changed = True
 						
 
@@ -871,6 +874,7 @@ class JsonGramma(object):
 				line = line + repr(vv) + ','
 			line = line[:-1]
 			print line 
+		print '------------------------ make_predict_table -----------------------'
 
 		m = self.make_predict_table(first_set, follow_set)
 		print m
@@ -882,7 +886,7 @@ class JsonGramma(object):
 			if repr(p.sym_left) not in M:
 				M[repr(p.sym_left)] = {}
 			for seq in p.sym_seqs:
-				_first_set = first_set[repr(seq)]
+				_first_set = first_set.first_set[repr(seq)]
 				for sym in _first_set.all_symbols():
 					if sym.is_vt():
 						if repr(sym) in M[repr(p.sym_left)]:
