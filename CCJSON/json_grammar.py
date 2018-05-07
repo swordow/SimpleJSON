@@ -918,28 +918,47 @@ class JsonGramma(object):
 		return M			
 
 	def check_json(self, json_str):
-		stack = [self.symbols[SYM_OBJ].repr(),]
-		stack_top = 0
-		for token in json_str:
-			for sym in self.symbols.values():
-				if token == sym.repr():
-					seq = self.M[stack[stack_top]][sym.repr()][1]
-					vnt = seq.get_first_non_terminal_symbol()
-					print 'stack top: ', stack[stack_top], ' token: ', token
-					print ' using production: ', self.M[stack[stack_top]][sym.repr()]
-					while (vnt.repr() in self.M  and token in self.M[vnt.repr()]):
-						print ' using production: ', self.M[vnt.repr()][token] 
-						seq = self.M[vnt.repr()][token][1]
-						vnt = seq.get_first_non_terminal_symbol()
-						if seq.first_symbol().repr() == token:
-							break
-					print ' push stack: ',vnt
-					stack.append(vnt.repr())
-					stack_top += 1
-					break
+		stack = ['#', self.symbols[SYM_OBJ]] + [None]*1000
+		stack_top = 1
+		a_json_str = json_str + '#'
+		buffer_ptr = 0
+		ret = False
+		while True:
+			token = a_json_str[buffer_ptr]
+			top_token = stack[stack_top]
+			if token == repr(top_token) and token == '#':
+				ret = True
+				print 'ok'
+				break
 
+			if top_token.is_vt() and top_token.repr() == token:
+				print '#top_token %s = token %s '%(top_token.repr(), token)
+				print ' pop stack: ', top_token.repr()
+				stack_top -= 1
+				buffer_ptr += 1
+				continue
 
+			if top_token.is_vt() and top_token.repr() != token:
+				ret = False
+				print ' token %s != top_token %s and top_token is vt! '%(token, top_token.repr())
+				break
 
+			if token not in self.M[top_token.repr()]:
+				ret = False
+				print ' token %s not in M[%s] !'%(token, top_token.repr())
+				break
+
+			print '#top_token %s , token %s '%(top_token.repr(), token)
+			seq = self.M[top_token.repr()][token][1]
+			print ' hit production [%s,%s]: '%(top_token.repr(), token), self.M[top_token.repr()][token]
+			print ' pop stack: ', top_token.repr()
+			stack_top -= 1
+			tseq = list(seq.symbols())
+			tseq.reverse()
+			for sym in tseq:
+				print ' push stack: ', sym
+				stack_top += 1
+				stack[stack_top] = sym
 
 			
 
