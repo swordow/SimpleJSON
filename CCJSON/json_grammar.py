@@ -69,6 +69,12 @@ SYM_DIGITS = 56
 SYM_ANY_CHAR = 57
 
 SYM_DIGIT1_9 = 58
+SYM_WHITESPACE = 59
+SYM_WHITE_SPACES = 60
+SYM_TAB = 61
+SYM_NEWLINE = 62
+SYM_RETURN = 63
+SYM_GRAMMAR_MARK = 64
 
 global SYM_DICT
 SYM_DICT = {
@@ -137,7 +143,14 @@ SYM_DICT = {
 
 	SYM_ANY_CHAR : "SYM_ANY_CHAR",
 
-	SYM_DIGIT1_9 : "SYM_DIGIT1_9"
+	SYM_DIGIT1_9 : "SYM_DIGIT1_9",
+	SYM_WHITESPACE: "SYM_WHITESPACE",
+
+	SYM_WHITE_SPACES: "SYN_WHITE_SPACES",
+	SYM_TAB:"SYM_TAB",
+	SYM_NEWLINE:"SYM_NEWLINE",
+	SYM_RETURN:"SYM_RETURN",
+	SYM_GRAMMAR_MARK:"SYM_GRAMMAR_MARK",
 }
 
 class SymbolSet(object):
@@ -188,6 +201,9 @@ class FirstSet(object):
 class SymbolSequence(object):
 	def __init__(self, seq):
 		self.seq = seq
+
+	def is_vt(sefl):
+		return False
 
 	def equal(self, seq):
 		return self.repr() == seq.repr()
@@ -454,7 +470,8 @@ class JsonGramma(object):
 			SYM_FRAC: Symbol(ST_VN, SYM_FRAC),
 			SYM_INT: Symbol(ST_VN, SYM_INT),
 			SYM_EXP: Symbol(ST_VN, SYM_EXP),
-
+			SYM_WHITESPACE: Symbol(ST_VT, ' '),
+			SYM_WHITE_SPACES: Symbol(ST_VN, SYM_WHITE_SPACES),
 			SYM_DOT: Symbol(ST_VT, '.'),
 			SYM_MINUS: Symbol(ST_VT, '-'),
 			SYM_LEFT_BRACE: Symbol(ST_VT, '{'),
@@ -498,31 +515,35 @@ class JsonGramma(object):
 			SYM_NINE: Symbol(ST_VT, '9'),
 			SYM_ZERO: Symbol(ST_VT, '0'),
 
+			SYM_NEWLINE:Symbol(ST_VT, '\n'),
+			SYM_RETURN:Symbol(ST_VT, '\r'),
+			SYM_TAB:Symbol(ST_VT, '\t'),
+			SYM_GRAMMAR_MARK:Symbol(ST_VT, '#')
 		}
 		self.productions={
 			SYM_OBJ:Production(
 				self.symbols[SYM_OBJ], [
-				[self.symbols[SYM_LEFT_BRACE], self.symbols[SYM_RIGHT_BRACE]],
-				[self.symbols[SYM_LEFT_BRACE], self.symbols[SYM_MEMBERS], self.symbols[SYM_RIGHT_BRACE]]
+				[self.symbols[SYM_LEFT_BRACE], self.symbols[SYM_WHITE_SPACES], self.symbols[SYM_RIGHT_BRACE]],
+				[self.symbols[SYM_LEFT_BRACE], self.symbols[SYM_WHITE_SPACES], self.symbols[SYM_MEMBERS], self.symbols[SYM_RIGHT_BRACE]]
 				]), #SYM_OBJ -> {} | { SYM_MEMBERS }  // 意味着需要提取公共左因子 
 			SYM_MEMBERS:Production(
 				self.symbols[SYM_MEMBERS],[
-				[self.symbols[SYM_PAIR]],
-				[self.symbols[SYM_PAIR],self.symbols[SYM_COMMA], self.symbols[SYM_MEMBERS]]
+				[self.symbols[SYM_PAIR],self.symbols[SYM_WHITE_SPACES]],
+				[self.symbols[SYM_PAIR],self.symbols[SYM_WHITE_SPACES],self.symbols[SYM_COMMA],self.symbols[SYM_WHITE_SPACES], self.symbols[SYM_MEMBERS]]
 				]),
 			SYM_PAIR:Production(
 				self.symbols[SYM_PAIR],[
-				[self.symbols[SYM_STRING], self.symbols[SYM_COLON], self.symbols[SYM_VALUE]]
+				[self.symbols[SYM_STRING], self.symbols[SYM_WHITE_SPACES], self.symbols[SYM_COLON], self.symbols[SYM_WHITE_SPACES], self.symbols[SYM_VALUE]]
 				]),
 			SYM_ARRAY:Production(
 				self.symbols[SYM_ARRAY],[
-				[self.symbols[SYM_LEFT_BRACKET], self.symbols[SYM_RIGHT_BRACKET]],
-				[self.symbols[SYM_LEFT_BRACKET], self.symbols[SYM_ELEMENTS], self.symbols[SYM_RIGHT_BRACKET]]
+				[self.symbols[SYM_LEFT_BRACKET], self.symbols[SYM_WHITE_SPACES], self.symbols[SYM_RIGHT_BRACKET]],
+				[self.symbols[SYM_LEFT_BRACKET], self.symbols[SYM_WHITE_SPACES], self.symbols[SYM_ELEMENTS], self.symbols[SYM_RIGHT_BRACKET]]
 				]),
 			SYM_ELEMENTS:Production(
 				self.symbols[SYM_ELEMENTS],[
-				[self.symbols[SYM_VALUE]],
-				[self.symbols[SYM_VALUE],self.symbols[SYM_COMMA], self.symbols[SYM_ELEMENTS]],
+				[self.symbols[SYM_VALUE],self.symbols[SYM_WHITE_SPACES]],
+				[self.symbols[SYM_VALUE],self.symbols[SYM_WHITE_SPACES], self.symbols[SYM_COMMA],self.symbols[SYM_WHITE_SPACES],self.symbols[SYM_ELEMENTS]],
 				]),
 			SYM_VALUE:Production(
 				self.symbols[SYM_VALUE],[
@@ -552,9 +573,21 @@ class JsonGramma(object):
 				[self.symbols[SYM_BACK_SLASH], self.symbols[SYM_r]],
 				[self.symbols[SYM_BACK_SLASH], self.symbols[SYM_t]],
 				[self.symbols[SYM_BACK_SLASH], self.symbols[SYM_u], self.symbols[SYM_HEX_DIGIT],self.symbols[SYM_HEX_DIGIT],self.symbols[SYM_HEX_DIGIT],self.symbols[SYM_HEX_DIGIT]],
-				[self.symbols[SYM_ANY_CHAR]]
-
+				[self.symbols[SYM_ANY_CHAR]],
+				[self.symbols[SYM_WHITESPACE]],
+				[self.symbols[SYM_NEWLINE]],
+				[self.symbols[SYM_RETURN]],
+				[self.symbols[SYM_TAB]]
 				]),
+			SYM_WHITE_SPACES:Production(
+				self.symbols[SYM_WHITE_SPACES],[
+					[self.symbols[SYM_WHITESPACE], self.symbols[SYM_WHITE_SPACES]],
+					[self.symbols[SYM_NEWLINE],  self.symbols[SYM_WHITE_SPACES]],
+					[self.symbols[SYM_RETURN],  self.symbols[SYM_WHITE_SPACES]],
+					[self.symbols[SYM_TAB],  self.symbols[SYM_WHITE_SPACES]],
+					[],
+				]
+			),
 			SYM_NUMBER:Production(
 				self.symbols[SYM_NUMBER],[
 				[self.symbols[SYM_INT]],
@@ -776,6 +809,8 @@ class JsonGramma(object):
 		# 	self.get_first_set_of_symbol(first_set, sym)
 
 		# Get the first set through all the productions
+
+		# FIRST(X) n FOLLOW(X) should be empty set
 		first_set = self.get_first_set()
 		empty_seq = SymbolSequence([])
 
@@ -819,13 +854,21 @@ class JsonGramma(object):
 
 					for seq in p.sym_seqs:
 						if seq.is_empty_sequence():
+							# for found_sym, found_p in self.productions.iteritems():
+							# 	for found_seq in found_p.sym_seqs:
+							# 		if found_seq.is_empty_sequence():
+							# 			continue
+							# 		contained, last = found_seq.contains_symbol(p.sym_left)
+							# 		if not contained:
+							# 			continue
+
 							continue
 
 						contained, last = seq.contains_symbol(nvt)
 						if not contained:
 							continue
 						
-						#print 'Current Production %s -> <%s> '%(repr(p.sym_left),repr(seq)), 'Current Symbol %s' % repr(nvt)
+						#print 'Current Production %s -> <%s> '%(repr(p.sym_left),repr(seq)), 'Current Symbol %s' % repr(nvt), contained, last
 
 						# X -> aPb
 						if not last:
@@ -852,7 +895,7 @@ class JsonGramma(object):
 							
 							# 如果 {e} in first(b)
 							# follow(p) U= follow(X)
-							if repr(empty_seq) in first_seq:
+							if first_set.has(repr(beta_seq),empty_seq):
 								for fsym in follow_set[repr(p.sym_left)].all_symbols():
 									if not follow_set[nvt_str].has(fsym):
 										follow_set[nvt_str].append(fsym)
@@ -863,12 +906,23 @@ class JsonGramma(object):
 
 						# 如果 X->aP
 						# follow(p) U= follow(X)
+						#print 'Current Symbol %s',nvt,contained,last
+						#print 'Current left symbol\'s follow set is', follow_set[repr(p.sym_left)].all_symbols()
 						for fsym in follow_set[repr(p.sym_left)].all_symbols():
 							if not follow_set[nvt_str].has(fsym):
 								follow_set[nvt_str].append(fsym)
 								#print 'FollowSet(%s)=%s'%(nvt_str, repr(follow_set[nvt_str]))
 								follow_set_changed = True
 						
+
+		print '------------------------ first set ------------------------'
+		# print first_set
+		for k, v in first_set.first_set.iteritems():
+			line = "<"+k+">" + '\t\t\t';
+			for vv in v.all_symbols():
+				line = line + repr(vv) + ','
+			line = line[:-1]
+			print line 
 
 		# print first_set
 		for k, v in follow_set.iteritems():
@@ -887,15 +941,48 @@ class JsonGramma(object):
 
 	# 1. 空串既不是终结符，也不是非终结符
 	def make_predict_table(self, first_set, follow_set):
+		# 错误1
+		'''
+		Current First Seq is SYN_WHITE_SPACES ->  	 SYN_WHITE_SPACES Set is ['\t']
+		[SYN_WHITE_SPACES, 	] = (SYN_WHITE_SPACES, es) already exists!
+
+		SYN_WHITE_SPACES能够推导到空串 然后 利用SYM_WHITE_SPACES的follow set进行产生式的产生
+		但是SYM_WHITE_SPACES的first set和follow set有交集，导致预测分析表重复，不知道用es产生式还是first set扫描的产生式
+		'''
+
+		# 错误2
+		'''
+		#top_token SYM_DIGIT , token 3
+ 		hit production [SYM_DIGIT,3]:  (SYM_DIGIT,  3)
+ 		pop stack:  SYM_DIGIT
+ 		push stack:  3
+		current stack ,'#',},SYM_MEMBERS_EXTEND_1001,SYM_DIGITS_EXTEND_1008,3
+
+		在3 pop之后是}但是没有对应的产生是，那么SYM_DIGITS_EXTEND_1008就应该有es，并且follow set有}然后就可以
+		吧SYM_DIGITS_EXTEND_1008 pop出去
+		而实际上
+		NVT<SYM_DIGITS_EXTEND_1008>			.,e,E,	, ,
+		,,
+		没有}，但是却能推导es，
+		SYM_DIGITS_EXTEND_1008 -> es |  SYM_DIGITS
+		那意味着SYM_DIGITS_EXTEND_1008的follow里面没有}...
+		为什么没有}然后发现SYM_VALUE的follow set也没}讲道理应该有}
+		SYM_VALUE没有，其实是因为SYM_PAIR的follow没有}
+		但是SYM_MEMBERS的follow是有}的，但是SYM_PAIR没有...有一行代码写错了，shit....first set判断有没有空串	
+		'''
 		M = {}
 		for sym_code, p in self.productions.iteritems():
 			if repr(p.sym_left) not in M:
 				M[repr(p.sym_left)] = {}
 			for seq in p.sym_seqs:
+				_first_set = SymbolSet()
 				if repr(seq) == repr(SymbolSequence([])):
-					continue
-				_first_set = first_set.first_set[repr(seq)]
+					_first_set.append(SymbolSequence([]))
+				else:
+					_first_set = first_set.first_set[repr(seq)]
+				#print seq, 'left ',p.sym_left, 'first set',_first_set
 				for sym in _first_set.all_symbols():
+					#print 'left ',p.sym_left, ' first sym ', sym
 					if sym.is_vt():
 						if repr(sym) in M[repr(p.sym_left)]:
 							l, s = M[repr(p.sym_left)][repr(sym)]
@@ -910,15 +997,19 @@ class JsonGramma(object):
 					if repr(sym) == repr(SymbolSequence([])):
 						for fsym in follow_set[repr(p.sym_left)].all_symbols():
 							if repr(fsym) in M[repr(p.sym_left)]:
-								print 'M[%s, %s] already exists!'%(repr(p.sym_left), repr(fsym))
-								print 'ERRRRRRRRRRRRRRRRRRRRRRRRRRRRR'
-								return
+								l, s = M[repr(p.sym_left)][repr(fsym)]
+								if repr(l) != repr(p.sym_left) or repr(s) != repr(seq):
+									print 'Current First Seq is %s -> %s'%(repr(p.sym_left), repr(seq))
+									print 'M[%s, %s] = %s already exists!'%(repr(p.sym_left), repr(fsym), repr((l, s)))
+									print 'ERRRRRRRRRRRRRRRRRRRRRRRRRRRR'
+									return
+							#print ' add (%s , %s) -> %s'%(p.sym_left, fsym, (p.sym_left, seq))
 							M[repr(p.sym_left)][repr(fsym)] = (p.sym_left, seq)
 		self.M = M
 		return M			
 
 	def check_json(self, json_str):
-		stack = ['#', self.symbols[SYM_OBJ]] + [None]*1000
+		stack = [self.symbols[SYM_GRAMMAR_MARK], self.symbols[SYM_OBJ]] + [None]*1000
 		stack_top = 1
 		a_json_str = json_str + '#'
 		buffer_ptr = 0
@@ -931,22 +1022,52 @@ class JsonGramma(object):
 				print 'ok'
 				break
 
-			if top_token.is_vt() and top_token.repr() == token:
-				print '#top_token %s = token %s '%(top_token.repr(), token)
-				print ' pop stack: ', top_token.repr()
-				stack_top -= 1
-				buffer_ptr += 1
-				continue
+				# find token
+			find_sym = None
+			for sym in self.symbols.values():
+				#print 'token',token, 'sym',sym.repr()
+				if sym.repr() == token:
+					find_sym = sym
+					break
+			
 
-			if top_token.is_vt() and top_token.repr() != token:
-				ret = False
-				print ' token %s != top_token %s and top_token is vt! '%(token, top_token.repr())
-				break
+			if find_sym is None:
+				print 'change %s to SYM_ANY_CHAR'%token
+				token = "SYM_ANY_CHAR"
+				
+			if top_token.is_vt():
+				if top_token.repr() != token:
+					if top_token.repr() == "SYM_ANY_CHAR":
+						print '#change %s to SYM_ANY_CHAR'%token
+						token = "SYM_ANY_CHAR"
+						print '#top_token %s = token %s '%(top_token.repr(), token)
+						print ' pop stack: ', top_token.repr()
+						stack_top -= 1
+						buffer_ptr += 1
+						continue
+					else:
+						ret = False
+						print ' token %s != top_token %s and top_token is vt! '%(token, top_token.repr())
+						break
+					
+				else:
+					print '#top_token %s = token %s '%(top_token.repr(), token)
+					print ' pop stack: ', top_token.repr()
+					stack_top -= 1
+					buffer_ptr += 1
+					continue
+
 
 			if token not in self.M[top_token.repr()]:
-				ret = False
-				print ' token %s not in M[%s] !'%(token, top_token.repr())
-				break
+					if  "SYM_ANY_CHAR" not in self.M[top_token.repr()]:
+						ret = False
+						print 'token and SYM_ANY_CHAR not in ', self.M[top_token.repr()]
+						break
+					else:
+						print 'change %s to SYM_ANY_CHAR'%token
+						token = "SYM_ANY_CHAR"
+			
+		
 
 			print '#top_token %s , token %s '%(top_token.repr(), token)
 			seq = self.M[top_token.repr()][token][1]
@@ -959,6 +1080,10 @@ class JsonGramma(object):
 				print ' push stack: ', sym
 				stack_top += 1
 				stack[stack_top] = sym
+			#ss = ""
+			#for i in xrange(stack_top+1):
+			#	ss += ',' + repr(stack[i])
+			#print 'current stack', ss
 
 			
 
@@ -977,6 +1102,6 @@ a.dump()
 print '----------------------- Check LL1 --------------------------'
 a.check_LL1()
 print '------------------------------- test ------------------------------'
-json = '{"a":"dsadsadas", "b":0012312,  "c":1231.2e213}'
+json = '{   "a" : "dsadsadas" ,   "b":0012312  ,  "c":1231.2e213, "dsada\tdsada":1231    }'
 a.check_json(json)
 
